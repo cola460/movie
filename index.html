@@ -39,7 +39,18 @@ button { cursor: pointer; }
 .selected { background: #555; }
 .rating button { width: 32px; margin: 2px; }
 .comment { font-size: 13px; border-top: 1px dashed #444; margin-top: 4px; padding-top: 4px; }
-.profile { border-bottom: 1px solid #444; margin-bottom: 10px; padding-bottom: 10px; }
+
+/* ПРОФИЛЬ В ЛЕВОМ НИЖНЕМ УГЛУ */
+.profile {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: #2b2b2b;
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: 1px solid #444;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
 </style>
 
 <script type="module">
@@ -83,12 +94,26 @@ function avg(movie) {
     return (v.reduce((a,b)=>a+b,0)/v.length).toFixed(1);
 }
 
+// ----------------- LOAD GENRES -----------------
+let genresMap = {};
+async function loadGenres() {
+    const res = await fetch(`https://api.themoviedb.org/3/genre/movie/list?api_key=${TMDB_API_KEY}&language=ru-RU`);
+    const data = await res.json();
+    data.genres.forEach(g => genresMap[g.id] = g.name);
+}
+await loadGenres();
+
+// ----------------- FETCH MOVIE -----------------
 async function fetchMovie(title) {
     const res = await fetch(
         `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&language=ru-RU`
     );
     const data = await res.json();
-    return data.results?.[0] || null;
+    const movie = data.results?.[0] || null;
+    if (!movie) return null;
+
+    const genreNames = movie.genre_ids.map(id => genresMap[id]).join(", ");
+    return { ...movie, genreNames };
 }
 
 // ----------------- FIREBASE -----------------
@@ -124,15 +149,18 @@ function renderSidebar() {
         b.textContent = "Поиск...";
 
         const m = await fetchMovie(i.value.trim());
+        if (!m) { b.textContent = "Не найдено"; setTimeout(()=>{b.textContent="➕ Добавить"; b.disabled=false;},1000); return; }
+
         const newMovie = {
-            title: m?.title || i.value,
-            poster: m?.poster_path ? IMG + m.poster_path : "",
-            tmdbRating: m?.vote_average?.toFixed(1) || "—",
-            year: m?.release_date?.slice(0,4) || "",
+            title: m.title,
+            poster: m.poster_path ? IMG + m.poster_path : "",
+            tmdbRating: m.vote_average?.toFixed(1) || "—",
+            year: m.release_date?.slice(0,4) || "",
             userRatings: {},
             comments: [],
             createdAt: Date.now(),
-            creator: state.user // сохраняем автора
+            creator: state.user,
+            genres: m.genreNames
         };
 
         await setDoc(doc(db, "movies", crypto.randomUUID()), newMovie);
@@ -160,7 +188,7 @@ function renderMain() {
             const nick = document.getElementById("nick").value.trim();
             if (!nick) return;
             state.user = nick;
-            localStorage.setItem("movieAppUser", nick); // сохраняем ник
+            localStorage.setItem("movieAppUser", nick);
             render();
         };
         return;
@@ -168,7 +196,6 @@ function renderMain() {
 
     // ----------------- ПРОФИЛЬ -----------------
     const userMovies = state.movies.filter(m => m.creator === state.user);
-
     main.innerHTML += `
         <div class="profile">
             <strong>Профиль</strong><br>
@@ -177,9 +204,7 @@ function renderMain() {
         </div>
     `;
 
-    if (!selectedMovieId) {
-    return; // больше ничего не показываем, если фильм не выбран
-    }
+    if (!selectedMovieId) return;
 
     const m = state.movies.find(x=>x.id===selectedMovieId);
 
@@ -187,8 +212,8 @@ function renderMain() {
         <h2>${m.title} (${m.year})</h2>
         ${m.poster ? `<img src="${m.poster}">` : ""}
         <p>TMDb: ${m.tmdbRating}</p>
-        <a href="https://www.kinopoisk.ru/index.php?kp_query=${encodeURIComponent(m.title)}"
-           target="_blank">Открыть на Кинопоиске</a>
+        <p>Жанры: ${m.genres}</p>
+        <a href="https://www.kinopoisk.ru/index.php?kp_query=${encodeURIComponent(m.title)}" target="_blank">Открыть на Кинопоиске</a>
         <p>Средняя оценка пользователей: ${avg(m)}</p>
     `;
 
@@ -258,4 +283,3 @@ loadMovies();
 <div id="main"></div>
 </body>
 </html>
-
