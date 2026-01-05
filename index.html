@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Movie App (TMDb)</title>
+<title>Movie App (TMDb + Firebase)</title>
 
 <style>
 body {
@@ -34,51 +34,50 @@ input, textarea, button {
     color: #eee;
 }
 button { cursor: pointer; }
-.movie-item {
-    padding: 8px;
-    border-bottom: 1px solid #444;
-    cursor: pointer;
-}
+.movie-item { padding: 8px; border-bottom: 1px solid #444; cursor: pointer; }
 .movie-item:hover { background: #3a3a3a; }
 .selected { background: #555; }
-.rating button {
-    width: 32px;
-    margin: 2px;
-}
-.comment {
-    font-size: 13px;
-    border-top: 1px dashed #444;
-    margin-top: 4px;
-    padding-top: 4px;
-}
-.profile {
-    border-bottom: 1px solid #444;
-    margin-bottom: 10px;
-    padding-bottom: 10px;
-}
+.rating button { width: 32px; margin: 2px; }
+.comment { font-size: 13px; border-top: 1px dashed #444; margin-top: 4px; padding-top: 4px; }
+.profile { border-bottom: 1px solid #444; margin-bottom: 10px; padding-bottom: 10px; }
 </style>
-</head>
 
-<body>
-<div id="sidebar"></div>
-<div id="main"></div>
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+import { getFirestore, collection, getDocs, setDoc, doc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-<script>
 const TMDB_API_KEY = "2ca8d6767ce5b1e65da06ab763f5c6b1";
 const IMG = "https://image.tmdb.org/t/p/w300";
 
-let state = JSON.parse(localStorage.getItem("movieApp")) || {
+const firebaseConfig = {
+    apiKey: "AIzaSyAankTW1IXlRygRzAFJh2r0LmE6IjJJk50",
+    authDomain: "movies-b2504.firebaseapp.com",
+    projectId: "movies-b2504",
+    storageBucket: "movies-b2504.firebasestorage.app",
+    messagingSenderId: "857966785940",
+    appId: "1:857966785940:web:5f84725a9049e047068b81"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ----------------- STATE -----------------
+let state = {
     user: null,
     movies: []
 };
-
 let selectedMovieId = null;
 
 const sidebar = document.getElementById("sidebar");
 const main = document.getElementById("main");
 
-function save() {
-    localStorage.setItem("movieApp", JSON.stringify(state));
+// ----------------- HELPERS -----------------
+function avg(movie) {
+    const v = Object.values(movie.userRatings || {});
+    if (!v.length) return "—";
+    return (v.reduce((a,b)=>a+b,0)/v.length).toFixed(1);
 }
 
 async function fetchMovie(title) {
@@ -89,13 +88,14 @@ async function fetchMovie(title) {
     return data.results?.[0] || null;
 }
 
-function avg(movie) {
-    const v = Object.values(movie.userRatings);
-    if (!v.length) return "—";
-    return (v.reduce((a,b)=>a+b,0)/v.length).toFixed(1);
+// ----------------- FIREBASE -----------------
+async function loadMovies() {
+    const snapshot = await getDocs(collection(db, "movies"));
+    state.movies = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
 }
 
-/* ---------- SIDEBAR ---------- */
+// ----------------- SIDEBAR -----------------
 function renderSidebar() {
     sidebar.innerHTML = "<h2>Фильмы</h2>";
 
@@ -121,9 +121,7 @@ function renderSidebar() {
         b.textContent = "Поиск...";
 
         const m = await fetchMovie(i.value.trim());
-
-        state.movies.push({
-            id: crypto.randomUUID(),
+        const newMovie = {
             title: m?.title || i.value,
             poster: m?.poster_path ? IMG + m.poster_path : "",
             tmdbRating: m?.vote_average?.toFixed(1) || "—",
@@ -131,20 +129,21 @@ function renderSidebar() {
             userRatings: {},
             comments: [],
             createdAt: Date.now()
-        });
+        };
 
-        save();
+        await setDoc(doc(db, "movies", crypto.randomUUID()), newMovie);
+        await loadMovies();
+
         i.value = "";
         b.disabled = false;
         b.textContent = "➕ Добавить";
-        render();
     };
 
     sidebar.appendChild(i);
     sidebar.appendChild(b);
 }
 
-/* ---------- MAIN ---------- */
+// ----------------- MAIN -----------------
 function renderMain() {
     main.innerHTML = "";
 
@@ -153,10 +152,10 @@ function renderMain() {
             <input id="nick" placeholder="Ник">
             <button id="login">Войти</button>
         `;
-        login.onclick = () => {
-            if (!nick.value.trim()) return;
-            state.user = nick.value.trim();
-            save();
+        document.getElementById("login").onclick = () => {
+            const nick = document.getElementById("nick").value.trim();
+            if (!nick) return;
+            state.user = nick;
             render();
         };
         return;
@@ -198,7 +197,11 @@ function renderMain() {
         const bt = document.createElement("button");
         bt.textContent = i;
         if (m.userRatings[state.user]===i) bt.style.background="#555";
-        bt.onclick = ()=>{ m.userRatings[state.user]=i; save(); render(); };
+        bt.onclick = async () => {
+            m.userRatings[state.user] = i;
+            await updateDoc(doc(db, "movies", m.id), { userRatings: m.userRatings });
+            await loadMovies();
+        };
         r.appendChild(bt);
     }
     main.appendChild(r);
@@ -208,11 +211,12 @@ function renderMain() {
 
     const cb = document.createElement("button");
     cb.textContent = "Ок";
-    cb.onclick = ()=>{
+    cb.onclick = async () => {
         if (!ta.value.trim()) return;
-        m.comments.push({user: state.user, text: ta.value});
-        save();
-        render();
+        await updateDoc(doc(db, "movies", m.id), {
+            comments: arrayUnion({ user: state.user, text: ta.value })
+        });
+        await loadMovies();
     };
 
     main.appendChild(ta);
@@ -222,30 +226,34 @@ function renderMain() {
         main.innerHTML += `<div class="comment"><b>${c.user}:</b> ${c.text}</div>`;
     });
 
-    // ---------- КНОПКА УДАЛЕНИЯ ФИЛЬМА (только для Кола) ----------
     if (state.user === "Кола") {
         const delBtn = document.createElement("button");
         delBtn.textContent = "🗑 Удалить фильм";
         delBtn.style.background = "#a33";
         delBtn.style.marginTop = "10px";
-        delBtn.onclick = () => {
+        delBtn.onclick = async () => {
             if (confirm(`Вы уверены, что хотите удалить "${m.title}"?`)) {
-                state.movies = state.movies.filter(x => x.id !== m.id);
+                await doc(db, "movies", m.id).delete();
                 selectedMovieId = null;
-                save();
-                render();
+                await loadMovies();
             }
         };
         main.appendChild(delBtn);
     }
 }
 
+// ----------------- RENDER -----------------
 function render() {
     renderSidebar();
     renderMain();
 }
 
-render();
+// ----------------- INIT -----------------
+loadMovies();
 </script>
+</head>
+<body>
+<div id="sidebar"></div>
+<div id="main"></div>
 </body>
 </html>
