@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Какой фильм?</title>
+<title>Movie App (TMDb + Firebase)</title>
 
 <style>
 body {
@@ -81,6 +81,25 @@ button { cursor: pointer; }
     width: 100%;
     box-sizing: border-box;
 }
+.viewed-container {
+    margin-top: 20px;
+}
+
+.viewed-toggle {
+    background: #3a3a3a;
+    padding: 6px 10px;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+}
+
+.viewed-list {
+    display: none; /* по умолчанию скрыто */
+    margin-top: 6px;
+    border-top: 1px solid #444;
+    padding-top: 6px;
+}
 </style>
 
 <script type="module">
@@ -146,6 +165,7 @@ async function loadMovies() {
 function renderSidebar() {
     sidebar.innerHTML = "<h2>Фильмы</h2>";
 
+    // --- основной список ---
     state.movies
         .sort((a,b)=>a.createdAt-b.createdAt)
         .forEach(m => {
@@ -156,6 +176,7 @@ function renderSidebar() {
             sidebar.appendChild(d);
         });
 
+    // --- кнопка добавления фильма ---
     const container = document.createElement("div");
     container.className = "add-movie-container";
 
@@ -171,7 +192,11 @@ function renderSidebar() {
         b.textContent = "Поиск...";
 
         const m = await fetchMovie(i.value.trim());
-        if (!m) { b.textContent = "Не найдено"; setTimeout(()=>{b.textContent="➕ Добавить"; b.disabled=false;},1000); return; }
+        if (!m) { 
+            b.textContent = "Не найдено"; 
+            setTimeout(()=>{b.textContent="➕ Добавить"; b.disabled=false;},1000); 
+            return; 
+        }
 
         const newMovie = {
             title: m.title,
@@ -181,7 +206,8 @@ function renderSidebar() {
             userRatings: {},
             createdAt: Date.now(),
             creator: state.user,
-            genres: m.genreNames
+            genres: m.genreNames,
+            viewedBy: {} // <-- новое поле
         };
 
         await setDoc(doc(db, "movies", crypto.randomUUID()), newMovie);
@@ -195,7 +221,38 @@ function renderSidebar() {
     container.appendChild(i);
     container.appendChild(b);
     sidebar.appendChild(container);
+
+    // --- блок просмотренных фильмов ---
+    const viewedContainer = document.createElement("div");
+    viewedContainer.className = "viewed-container";
+
+    const toggleBtn = document.createElement("button");
+    toggleBtn.className = "viewed-toggle";
+    toggleBtn.textContent = "👁 Просмотрено";
+    
+    const viewedList = document.createElement("div");
+    viewedList.className = "viewed-list";
+
+    toggleBtn.onclick = () => {
+        viewedList.style.display = viewedList.style.display === "none" ? "block" : "none";
+    };
+
+    // фильтруем просмотренные фильмы текущего пользователя
+    state.movies
+        .filter(m => m.viewedBy && m.viewedBy[state.user])
+        .forEach(m => {
+            const d = document.createElement("div");
+            d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
+            d.innerHTML = `<strong>${m.title}</strong> ⭐ ${avg(m)}`;
+            d.onclick = () => { selectedMovieId = m.id; render(); };
+            viewedList.appendChild(d);
+        });
+
+    viewedContainer.appendChild(toggleBtn);
+    viewedContainer.appendChild(viewedList);
+    sidebar.appendChild(viewedContainer);
 }
+
 
 function renderMain() {
     main.innerHTML = "";
@@ -281,4 +338,3 @@ loadMovies();
 <div id="main"></div>
 </body>
 </html>
-
