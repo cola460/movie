@@ -23,15 +23,15 @@ body {
     flex: 1;
     padding: 20px;
     overflow-y: auto;
+    position: relative;
 }
 input, textarea, button {
-    width: 100%;
-    margin: 6px 0;
-    padding: 8px;
     border-radius: 6px;
     border: none;
     background: #3a3a3a;
     color: #eee;
+    margin: 6px 0;
+    padding: 8px;
 }
 button { cursor: pointer; }
 .movie-item { padding: 8px; border-bottom: 1px solid #444; cursor: pointer; }
@@ -51,6 +51,33 @@ button { cursor: pointer; }
     border: 1px solid #444;
     box-shadow: 0 0 10px rgba(0,0,0,0.5);
 }
+
+/* КОМПАКТНОЕ ПОЛЕ КОММЕНТАРИЯ */
+.comment-box {
+    width: 200px;
+    display: inline-block;
+    vertical-align: top;
+}
+.comment-box + button {
+    width: auto;
+    margin-left: 5px;
+    padding: 8px 12px;
+}
+
+/* ЛОГИН ПО ЦЕНТРУ */
+.login-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}
+.login-container input,
+.login-container button {
+    width: 220px;
+    padding: 8px 10px;
+    margin: 5px 0;
+}
 </style>
 
 <script type="module">
@@ -69,32 +96,25 @@ const firebaseConfig = {
     appId: "1:857966785940:web:5f84725a9049e047068b81"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// ----------------- STATE -----------------
-let state = {
-    user: null,
-    movies: []
-};
+let state = { user: null, movies: [] };
 let selectedMovieId = null;
 
 const sidebar = document.getElementById("sidebar");
 const main = document.getElementById("main");
 
-// ----------------- LOAD SAVED USER -----------------
 const savedUser = localStorage.getItem("movieAppUser");
 if (savedUser) state.user = savedUser;
 
-// ----------------- HELPERS -----------------
 function avg(movie) {
     const v = Object.values(movie.userRatings || {});
     if (!v.length) return "—";
     return (v.reduce((a,b)=>a+b,0)/v.length).toFixed(1);
 }
 
-// ----------------- LOAD GENRES -----------------
+// ЖАНРЫ
 let genresMap = {};
 async function loadGenres() {
     const res = await fetch(`https://api.themoviedb.org/3/genre/movie/list?api_key=${TMDB_API_KEY}&language=ru-RU`);
@@ -103,7 +123,6 @@ async function loadGenres() {
 }
 await loadGenres();
 
-// ----------------- FETCH MOVIE -----------------
 async function fetchMovie(title) {
     const res = await fetch(
         `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&language=ru-RU`
@@ -111,19 +130,16 @@ async function fetchMovie(title) {
     const data = await res.json();
     const movie = data.results?.[0] || null;
     if (!movie) return null;
-
     const genreNames = movie.genre_ids.map(id => genresMap[id]).join(", ");
     return { ...movie, genreNames };
 }
 
-// ----------------- FIREBASE -----------------
 async function loadMovies() {
     const snapshot = await getDocs(collection(db, "movies"));
     state.movies = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     render();
 }
 
-// ----------------- SIDEBAR -----------------
 function renderSidebar() {
     sidebar.innerHTML = "<h2>Фильмы</h2>";
 
@@ -175,14 +191,15 @@ function renderSidebar() {
     sidebar.appendChild(b);
 }
 
-// ----------------- MAIN -----------------
 function renderMain() {
     main.innerHTML = "";
 
     if (!state.user) {
         main.innerHTML = `
-            <input id="nick" placeholder="Ник">
-            <button id="login">Войти</button>
+            <div class="login-container">
+                <input id="nick" placeholder="Ник">
+                <button id="login">Войти</button>
+            </div>
         `;
         document.getElementById("login").onclick = () => {
             const nick = document.getElementById("nick").value.trim();
@@ -194,7 +211,6 @@ function renderMain() {
         return;
     }
 
-    // ----------------- ПРОФИЛЬ -----------------
     const userMovies = state.movies.filter(m => m.creator === state.user);
     main.innerHTML += `
         <div class="profile">
@@ -234,6 +250,7 @@ function renderMain() {
 
     const ta = document.createElement("textarea");
     ta.placeholder = "Комментарий";
+    ta.className = "comment-box";
 
     const cb = document.createElement("button");
     cb.textContent = "Ок";
@@ -268,13 +285,11 @@ function renderMain() {
     }
 }
 
-// ----------------- RENDER -----------------
 function render() {
     renderSidebar();
     renderMain();
 }
 
-// ----------------- INIT -----------------
 loadMovies();
 </script>
 </head>
