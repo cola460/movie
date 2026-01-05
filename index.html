@@ -46,9 +46,13 @@ button { cursor: pointer; }
     left: 20px;
     background: #2b2b2b;
     padding: 10px 15px;
-    border-radius: 8px;
     border: 1px solid #444;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    /* убраны border-radius и box-shadow */
+}
+
+.profile strong {
+    display: block;
+    margin-bottom: 6px; /* промежуток между ником и количеством фильмов */
 }
 
 /* ЛОГИН ПО ЦЕНТРУ */
@@ -215,12 +219,11 @@ function renderMain() {
 
     const userMovies = state.movies.filter(m => m.creator === state.user);
     main.innerHTML += `
-        <div class="profile">
-            <strong>Профиль</strong><br>
-            ${state.user}<br>
-            Добавлено фильмов: ${userMovies.length}
-        </div>
-    `;
+    <div class="profile">
+        <strong>${state.user}</strong>
+        Добавлено фильмов: ${userMovies.length}
+    </div>
+`	;
 
     if (!selectedMovieId) return;
 
