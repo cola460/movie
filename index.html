@@ -131,7 +131,8 @@ function renderSidebar() {
             year: m?.release_date?.slice(0,4) || "",
             userRatings: {},
             comments: [],
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            creator: state.user // сохраняем автора
         };
 
         await setDoc(doc(db, "movies", crypto.randomUUID()), newMovie);
@@ -165,17 +166,14 @@ function renderMain() {
         return;
     }
 
-    const rated = state.movies.filter(m => state.user in m.userRatings);
-    const avgUser = rated.length
-        ? (rated.reduce((s,m)=>s+m.userRatings[state.user],0)/rated.length).toFixed(1)
-        : "—";
+    // ----------------- ПРОФИЛЬ -----------------
+    const userMovies = state.movies.filter(m => m.creator === state.user);
 
     main.innerHTML += `
         <div class="profile">
             <strong>Профиль</strong><br>
             Ник: ${state.user}<br>
-            Оценено фильмов: ${rated.length}<br>
-            Средняя оценка: ${avgUser}
+            Фильмов добавлено: ${userMovies.length}
         </div>
     `;
 
