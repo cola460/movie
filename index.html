@@ -70,7 +70,7 @@ button { cursor: pointer; }
 .add-movie-container {
     display: flex;
     flex-direction: column;
-    gap: 6px; /* расстояние между input и кнопкой */
+    gap: 6px;
 }
 .add-movie-container input,
 .add-movie-container button {
@@ -217,8 +217,8 @@ function renderMain() {
     main.innerHTML += `
         <div class="profile">
             <strong>Профиль</strong><br>
-            Ник: ${state.user}<br>
-            Фильмов добавлено: ${userMovies.length}
+            ${state.user}<br>
+            Добавлено фильмов: ${userMovies.length}
         </div>
     `;
 
@@ -231,7 +231,6 @@ function renderMain() {
         ${m.poster ? `<img src="${m.poster}">` : ""}
         <p>TMDb: ${m.tmdbRating}</p>
         <p>Жанры: ${m.genres}</p>
-        <a href="https://www.kinopoisk.ru/index.php?kp_query=${encodeURIComponent(m.title)}" target="_blank">Открыть на Кинопоиске</a>
         <p>Средняя оценка пользователей: ${avg(m)}</p>
     `;
 
