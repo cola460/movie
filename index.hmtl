@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Movie App (TMDb)</title>
+
+<style>
+body {
+    margin: 0;
+    background: #1e1e1e;
+    color: #eee;
+    font-family: Arial, sans-serif;
+    display: flex;
+    height: 100vh;
+}
+#sidebar {
+    width: 320px;
+    background: #2b2b2b;
+    padding: 15px;
+    overflow-y: auto;
+}
+#main {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+input, textarea, button {
+    width: 100%;
+    margin: 6px 0;
+    padding: 8px;
+    border-radius: 6px;
+    border: none;
+    background: #3a3a3a;
+    color: #eee;
+}
+button { cursor: pointer; }
+.movie-item {
+    padding: 8px;
+    border-bottom: 1px solid #444;
+    cursor: pointer;
+}
+.movie-item:hover { background: #3a3a3a; }
+.selected { background: #555; }
+.rating button {
+    width: 32px;
+    margin: 2px;
+}
+.comment {
+    font-size: 13px;
+    border-top: 1px dashed #444;
+    margin-top: 4px;
+    padding-top: 4px;
+}
+.profile {
+    border-bottom: 1px solid #444;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+}
+</style>
+</head>
+
+<body>
+<div id="sidebar"></div>
+<div id="main"></div>
+
+<script>
+const TMDB_API_KEY = "2ca8d6767ce5b1e65da06ab763f5c6b1";
+const IMG = "https://image.tmdb.org/t/p/w300";
+
+let state = JSON.parse(localStorage.getItem("movieApp")) || {
+    user: null,
+    movies: []
+};
+
+let selectedMovieId = null;
+
+const sidebar = document.getElementById("sidebar");
+const main = document.getElementById("main");
+
+function save() {
+    localStorage.setItem("movieApp", JSON.stringify(state));
+}
+
+async function fetchMovie(title) {
+    const res = await fetch(
+        `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&language=ru-RU`
+    );
+    const data = await res.json();
+    return data.results?.[0] || null;
+}
+
+function avg(movie) {
+    const v = Object.values(movie.userRatings);
+    if (!v.length) return "—";
+    return (v.reduce((a,b)=>a+b,0)/v.length).toFixed(1);
+}
+
+/* ---------- SIDEBAR ---------- */
+function renderSidebar() {
+    sidebar.innerHTML = "<h2>Фильмы</h2>";
+
+    state.movies
+        .sort((a,b)=>a.createdAt-b.createdAt)
+        .forEach(m => {
+            const d = document.createElement("div");
+            d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
+            d.innerHTML = `<strong>${m.title}</strong><br>⭐ ${avg(m)}`;
+            d.onclick = () => { selectedMovieId = m.id; render(); };
+            sidebar.appendChild(d);
+        });
+
+    const i = document.createElement("input");
+    i.placeholder = "Название фильма";
+
+    const b = document.createElement("button");
+    b.textContent = "➕ Добавить";
+
+    b.onclick = async () => {
+        if (!i.value.trim()) return;
+        b.disabled = true;
+        b.textContent = "Поиск...";
+
+        const m = await fetchMovie(i.value.trim());
+
+        state.movies.push({
+            id: crypto.randomUUID(),
+            title: m?.title || i.value,
+            poster: m?.poster_path ? IMG + m.poster_path : "",
+            tmdbRating: m?.vote_average?.toFixed(1) || "—",
+            year: m?.release_date?.slice(0,4) || "",
+            userRatings: {},
+            comments: [],
+            createdAt: Date.now()
+        });
+
+        save();
+        i.value = "";
+        b.disabled = false;
+        b.textContent = "➕ Добавить";
+        render();
+    };
+
+    sidebar.appendChild(i);
+    sidebar.appendChild(b);
+}
+
+/* ---------- MAIN ---------- */
+function renderMain() {
+    main.innerHTML = "";
+
+    if (!state.user) {
+        main.innerHTML = `
+            <input id="nick" placeholder="Ник">
+            <button id="login">Войти</button>
+        `;
+        login.onclick = () => {
+            if (!nick.value.trim()) return;
+            state.user = nick.value.trim();
+            save();
+            render();
+        };
+        return;
+    }
+
+    const rated = state.movies.filter(m => state.user in m.userRatings);
+    const avgUser = rated.length
+        ? (rated.reduce((s,m)=>s+m.userRatings[state.user],0)/rated.length).toFixed(1)
+        : "—";
+
+    main.innerHTML += `
+        <div class="profile">
+            <strong>Профиль</strong><br>
+            Ник: ${state.user}<br>
+            Оценено фильмов: ${rated.length}<br>
+            Средняя оценка: ${avgUser}
+        </div>
+    `;
+
+    if (!selectedMovieId) {
+        main.innerHTML += "<p>Выберите фильм слева</p>";
+        return;
+    }
+
+    const m = state.movies.find(x=>x.id===selectedMovieId);
+
+    main.innerHTML += `
+        <h2>${m.title} (${m.year})</h2>
+        ${m.poster ? `<img src="${m.poster}">` : ""}
+        <p>TMDb: ${m.tmdbRating}</p>
+        <a href="https://www.kinopoisk.ru/index.php?kp_query=${encodeURIComponent(m.title)}"
+           target="_blank">Открыть на Кинопоиске</a>
+        <p>Средняя оценка пользователей: ${avg(m)}</p>
+    `;
+
+    const r = document.createElement("div");
+    r.className = "rating";
+    for (let i=1;i<=10;i++) {
+        const bt = document.createElement("button");
+        bt.textContent = i;
+        if (m.userRatings[state.user]===i) bt.style.background="#555";
+        bt.onclick = ()=>{ m.userRatings[state.user]=i; save(); render(); };
+        r.appendChild(bt);
+    }
+    main.appendChild(r);
+
+    const ta = document.createElement("textarea");
+    ta.placeholder = "Комментарий";
+
+    const cb = document.createElement("button");
+    cb.textContent = "Ок";
+    cb.onclick = ()=>{
+        if (!ta.value.trim()) return;
+        m.comments.push({user: state.user, text: ta.value});
+        save();
+        render();
+    };
+
+    main.appendChild(ta);
+    main.appendChild(cb);
+
+    m.comments.forEach(c=>{
+        main.innerHTML += `<div class="comment"><b>${c.user}:</b> ${c.text}</div>`;
+    });
+
+    // ---------- КНОПКА УДАЛЕНИЯ ФИЛЬМА (только для Кола) ----------
+    if (state.user === "Кола") {
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "🗑 Удалить фильм";
+        delBtn.style.background = "#a33";
+        delBtn.style.marginTop = "10px";
+        delBtn.onclick = () => {
+            if (confirm(`Вы уверены, что хотите удалить "${m.title}"?`)) {
+                state.movies = state.movies.filter(x => x.id !== m.id);
+                selectedMovieId = null;
+                save();
+                render();
+            }
+        };
+        main.appendChild(delBtn);
+    }
+}
+
+function render() {
+    renderSidebar();
+    renderMain();
+}
+
+render();
+</script>
+</body>
+</html>
