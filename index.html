@@ -42,10 +42,9 @@ button { cursor: pointer; }
 .profile { border-bottom: 1px solid #444; margin-bottom: 10px; padding-bottom: 10px; }
 </style>
 
-<!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-import { getFirestore, collection, getDocs, setDoc, doc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, setDoc, doc, updateDoc, arrayUnion, deleteDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const TMDB_API_KEY = "2ca8d6767ce5b1e65da06ab763f5c6b1";
 const IMG = "https://image.tmdb.org/t/p/w300";
@@ -72,6 +71,10 @@ let selectedMovieId = null;
 
 const sidebar = document.getElementById("sidebar");
 const main = document.getElementById("main");
+
+// ----------------- LOAD SAVED USER -----------------
+const savedUser = localStorage.getItem("movieAppUser");
+if (savedUser) state.user = savedUser;
 
 // ----------------- HELPERS -----------------
 function avg(movie) {
@@ -156,6 +159,7 @@ function renderMain() {
             const nick = document.getElementById("nick").value.trim();
             if (!nick) return;
             state.user = nick;
+            localStorage.setItem("movieAppUser", nick); // сохраняем ник
             render();
         };
         return;
@@ -233,7 +237,7 @@ function renderMain() {
         delBtn.style.marginTop = "10px";
         delBtn.onclick = async () => {
             if (confirm(`Вы уверены, что хотите удалить "${m.title}"?`)) {
-                await doc(db, "movies", m.id).delete();
+                await deleteDoc(doc(db, "movies", m.id));
                 selectedMovieId = null;
                 await loadMovies();
             }
