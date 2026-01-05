@@ -47,10 +47,12 @@ button { cursor: pointer; }
     background: #2b2b2b;
     padding: 10px 15px;
     border: 1px solid #444;
+    /* убраны border-radius и box-shadow */
 }
+
 .profile strong {
     display: block;
-    margin-bottom: 6px;
+    margin-bottom: 6px; /* промежуток между ником и количеством фильмов */
 }
 
 /* ЛОГИН ПО ЦЕНТРУ */
@@ -79,10 +81,10 @@ button { cursor: pointer; }
     width: 100%;
     box-sizing: border-box;
 }
-
 .viewed-container {
     margin-top: 20px;
 }
+
 .viewed-toggle {
     background: #3a3a3a;
     padding: 6px 10px;
@@ -91,8 +93,9 @@ button { cursor: pointer; }
     width: 100%;
     text-align: left;
 }
+
 .viewed-list {
-    display: none;
+    display: none; /* по умолчанию скрыто */
     margin-top: 6px;
     border-top: 1px solid #444;
     padding-top: 6px;
@@ -118,7 +121,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-let state = { user: null, movies: [], viewedOpen: false };
+let state = { user: null, movies: [] };
 let selectedMovieId = null;
 
 const sidebar = document.getElementById("sidebar");
@@ -133,6 +136,7 @@ function avg(movie) {
     return (v.reduce((a,b)=>a+b,0)/v.length).toFixed(1);
 }
 
+// ЖАНРЫ
 let genresMap = {};
 async function loadGenres() {
     const res = await fetch(`https://api.themoviedb.org/3/genre/movie/list?api_key=${TMDB_API_KEY}&language=ru-RU`);
@@ -161,17 +165,30 @@ async function loadMovies() {
 function renderSidebar() {
     sidebar.innerHTML = "<h2>Фильмы</h2>";
 
-    // --- основной список (исключаем просмотренные) ---
-    state.movies
-        .filter(m => !m.viewedBy?.[state.user])
-        .sort((a,b)=>a.createdAt-b.createdAt)
-        .forEach(m => {
-            const d = document.createElement("div");
-            d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
-            d.innerHTML = `<strong>${m.title}</strong><br>⭐ ${avg(m)}`;
-            d.onclick = () => { selectedMovieId = m.id; render(); };
-            sidebar.appendChild(d);
-        });
+    // --- основной список (исключаем просмотренные), новые сверху ---
+state.movies
+    .filter(m => !m.viewedBy?.[state.user])
+    .sort((a,b)=>b.createdAt - a.createdAt) // <--- сортировка по убыванию
+    .forEach(m => {
+        const d = document.createElement("div");
+        d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
+        d.innerHTML = `<strong>${m.title}</strong><br>⭐ ${avg(m)}`;
+        d.onclick = () => { selectedMovieId = m.id; render(); };
+        sidebar.appendChild(d);
+    });
+
+// --- просмотренные фильмы, новые сверху ---
+state.movies
+    .filter(m => m.viewedBy?.[state.user])
+    .sort((a,b)=>b.createdAt - a.createdAt) // <--- сортировка по убыванию
+    .forEach(m => {
+        const d = document.createElement("div");
+        d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
+        d.innerHTML = `<strong>${m.title}</strong> ⭐ ${avg(m)}`;
+        d.onclick = () => { selectedMovieId = m.id; render(); };
+        viewedList.appendChild(d);
+    });
+
 
     // --- кнопка добавления фильма ---
     const container = document.createElement("div");
@@ -226,16 +243,15 @@ function renderSidebar() {
     const toggleBtn = document.createElement("button");
     toggleBtn.className = "viewed-toggle";
     toggleBtn.textContent = "👁 Просмотрено";
-
+    
     const viewedList = document.createElement("div");
     viewedList.className = "viewed-list";
-    viewedList.style.display = state.viewedOpen ? "block" : "none";
 
     toggleBtn.onclick = () => {
-        state.viewedOpen = !state.viewedOpen;
-        render();
+        viewedList.style.display = viewedList.style.display === "none" ? "block" : "none";
     };
 
+    // --- только просмотренные ---
     state.movies
         .filter(m => m.viewedBy?.[state.user])
         .forEach(m => {
@@ -250,6 +266,8 @@ function renderSidebar() {
     viewedContainer.appendChild(viewedList);
     sidebar.appendChild(viewedContainer);
 }
+
+
 
 function renderMain() {
     main.innerHTML = "";
@@ -277,7 +295,7 @@ function renderMain() {
         <strong>${state.user}</strong>
         Добавлено фильмов: ${userMovies.length}
     </div>
-`;
+`	;
 
     if (!selectedMovieId) return;
 
@@ -290,19 +308,17 @@ function renderMain() {
         <p>Жанры: ${m.genres}</p>
         <p>Средняя оценка пользователей: ${avg(m)}</p>
     `;
-
-    // --- кнопка "просмотрено" с глазиком ---
-    const viewedBtn = document.createElement("button");
-    viewedBtn.textContent = m.viewedBy?.[state.user] ? "👁 Просмотрено" : "👁 Отметить просмотрено";
-    viewedBtn.style.marginTop = "6px";
-    viewedBtn.onclick = async () => {
-        if (!m.viewedBy) m.viewedBy = {};
-        m.viewedBy[state.user] = true;
-        await updateDoc(doc(db, "movies", m.id), { viewedBy: m.viewedBy });
-        await loadMovies();
-    };
-    main.appendChild(viewedBtn);
-
+// --- кнопка "просмотрено" ---
+const viewedBtn = document.createElement("button");
+viewedBtn.textContent = m.viewedBy?.[state.user] ? "👁 Просмотрено" : "👁 Отметить просмотрено";
+viewedBtn.style.marginTop = "6px";
+viewedBtn.onclick = async () => {
+    if (!m.viewedBy) m.viewedBy = {};
+    m.viewedBy[state.user] = true; // помечаем как просмотренный
+    await updateDoc(doc(db, "movies", m.id), { viewedBy: m.viewedBy });
+    await loadMovies(); // обновляем sidebar
+};
+main.appendChild(viewedBtn);
     const r = document.createElement("div");
     r.className = "rating";
     for (let i=1;i<=10;i++) {
