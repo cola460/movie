@@ -25,7 +25,7 @@ body {
     overflow-y: auto;
     position: relative;
 }
-input, textarea, button {
+input, button {
     border-radius: 6px;
     border: none;
     background: #3a3a3a;
@@ -38,7 +38,6 @@ button { cursor: pointer; }
 .movie-item:hover { background: #3a3a3a; }
 .selected { background: #555; }
 .rating button { width: 32px; margin: 2px; }
-.comment { font-size: 13px; border-top: 1px dashed #444; margin-top: 4px; padding-top: 4px; }
 
 /* ПРОФИЛЬ В ЛЕВОМ НИЖНЕМ УГЛУ */
 .profile {
@@ -50,18 +49,6 @@ button { cursor: pointer; }
     border-radius: 8px;
     border: 1px solid #444;
     box-shadow: 0 0 10px rgba(0,0,0,0.5);
-}
-
-/* КОМПАКТНОЕ ПОЛЕ КОММЕНТАРИЯ */
-.comment-box {
-    width: 200px;
-    display: inline-block;
-    vertical-align: top;
-}
-.comment-box + button {
-    width: auto;
-    margin-left: 5px;
-    padding: 8px 12px;
 }
 
 /* ЛОГИН ПО ЦЕНТРУ */
@@ -78,11 +65,23 @@ button { cursor: pointer; }
     padding: 8px 10px;
     margin: 5px 0;
 }
+
+/* ПОЛЕ И КНОПКА ДЛЯ ДОБАВЛЕНИЯ ФИЛЬМА */
+.add-movie-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px; /* расстояние между input и кнопкой */
+}
+.add-movie-container input,
+.add-movie-container button {
+    width: 100%;
+    box-sizing: border-box;
+}
 </style>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-import { getFirestore, collection, getDocs, setDoc, doc, updateDoc, arrayUnion, deleteDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, setDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const TMDB_API_KEY = "2ca8d6767ce5b1e65da06ab763f5c6b1";
 const IMG = "https://image.tmdb.org/t/p/w300";
@@ -153,6 +152,9 @@ function renderSidebar() {
             sidebar.appendChild(d);
         });
 
+    const container = document.createElement("div");
+    container.className = "add-movie-container";
+
     const i = document.createElement("input");
     i.placeholder = "Название фильма";
 
@@ -173,7 +175,6 @@ function renderSidebar() {
             tmdbRating: m.vote_average?.toFixed(1) || "—",
             year: m.release_date?.slice(0,4) || "",
             userRatings: {},
-            comments: [],
             createdAt: Date.now(),
             creator: state.user,
             genres: m.genreNames
@@ -187,8 +188,9 @@ function renderSidebar() {
         b.textContent = "➕ Добавить";
     };
 
-    sidebar.appendChild(i);
-    sidebar.appendChild(b);
+    container.appendChild(i);
+    container.appendChild(b);
+    sidebar.appendChild(container);
 }
 
 function renderMain() {
@@ -247,27 +249,6 @@ function renderMain() {
         r.appendChild(bt);
     }
     main.appendChild(r);
-
-    const ta = document.createElement("textarea");
-    ta.placeholder = "Комментарий";
-    ta.className = "comment-box";
-
-    const cb = document.createElement("button");
-    cb.textContent = "Ок";
-    cb.onclick = async () => {
-        if (!ta.value.trim()) return;
-        await updateDoc(doc(db, "movies", m.id), {
-            comments: arrayUnion({ user: state.user, text: ta.value })
-        });
-        await loadMovies();
-    };
-
-    main.appendChild(ta);
-    main.appendChild(cb);
-
-    m.comments.forEach(c=>{
-        main.innerHTML += `<div class="comment"><b>${c.user}:</b> ${c.text}</div>`;
-    });
 
     if (state.user === "Кола") {
         const delBtn = document.createElement("button");
