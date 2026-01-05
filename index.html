@@ -47,12 +47,11 @@ button { cursor: pointer; }
     background: #2b2b2b;
     padding: 10px 15px;
     border: 1px solid #444;
-    /* убраны border-radius и box-shadow */
 }
 
 .profile strong {
     display: block;
-    margin-bottom: 6px; /* промежуток между ником и количеством фильмов */
+    margin-bottom: 6px;
 }
 
 /* ЛОГИН ПО ЦЕНТРУ */
@@ -81,10 +80,10 @@ button { cursor: pointer; }
     width: 100%;
     box-sizing: border-box;
 }
+
 .viewed-container {
     margin-top: 20px;
 }
-
 .viewed-toggle {
     background: #3a3a3a;
     padding: 6px 10px;
@@ -93,9 +92,8 @@ button { cursor: pointer; }
     width: 100%;
     text-align: left;
 }
-
 .viewed-list {
-    display: none; /* по умолчанию скрыто */
+    display: none;
     margin-top: 6px;
     border-top: 1px solid #444;
     padding-top: 6px;
@@ -136,7 +134,6 @@ function avg(movie) {
     return (v.reduce((a,b)=>a+b,0)/v.length).toFixed(1);
 }
 
-// ЖАНРЫ
 let genresMap = {};
 async function loadGenres() {
     const res = await fetch(`https://api.themoviedb.org/3/genre/movie/list?api_key=${TMDB_API_KEY}&language=ru-RU`);
@@ -165,7 +162,6 @@ async function loadMovies() {
 function renderSidebar() {
     sidebar.innerHTML = "<h2>Фильмы</h2>";
 
-    // --- основной список ---
     state.movies
         .sort((a,b)=>a.createdAt-b.createdAt)
         .forEach(m => {
@@ -176,7 +172,6 @@ function renderSidebar() {
             sidebar.appendChild(d);
         });
 
-    // --- кнопка добавления фильма ---
     const container = document.createElement("div");
     container.className = "add-movie-container";
 
@@ -207,7 +202,7 @@ function renderSidebar() {
             createdAt: Date.now(),
             creator: state.user,
             genres: m.genreNames,
-            viewedBy: {} // <-- новое поле
+            viewedBy: {}
         };
 
         await setDoc(doc(db, "movies", crypto.randomUUID()), newMovie);
@@ -237,9 +232,8 @@ function renderSidebar() {
         viewedList.style.display = viewedList.style.display === "none" ? "block" : "none";
     };
 
-    // фильтруем просмотренные фильмы текущего пользователя
     state.movies
-        .filter(m => m.viewedBy && m.viewedBy[state.user])
+        .filter(m => m.viewedBy?.[state.user])
         .forEach(m => {
             const d = document.createElement("div");
             d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
@@ -252,7 +246,6 @@ function renderSidebar() {
     viewedContainer.appendChild(viewedList);
     sidebar.appendChild(viewedContainer);
 }
-
 
 function renderMain() {
     main.innerHTML = "";
@@ -280,7 +273,7 @@ function renderMain() {
         <strong>${state.user}</strong>
         Добавлено фильмов: ${userMovies.length}
     </div>
-`	;
+`;
 
     if (!selectedMovieId) return;
 
@@ -293,17 +286,19 @@ function renderMain() {
         <p>Жанры: ${m.genres}</p>
         <p>Средняя оценка пользователей: ${avg(m)}</p>
     `;
-// --- кнопка "просмотрено" ---
-const viewedBtn = document.createElement("button");
-viewedBtn.textContent = m.viewedBy?.[state.user] ? "👁 Просмотрено" : "👁 Отметить просмотрено";
-viewedBtn.style.marginTop = "6px";
-viewedBtn.onclick = async () => {
-    if (!m.viewedBy) m.viewedBy = {};
-    m.viewedBy[state.user] = true; // помечаем как просмотренный
-    await updateDoc(doc(db, "movies", m.id), { viewedBy: m.viewedBy });
-    await loadMovies(); // обновляем sidebar
-};
-main.appendChild(viewedBtn);
+
+    // --- кнопка "просмотрено" с глазиком ---
+    const viewedBtn = document.createElement("button");
+    viewedBtn.textContent = m.viewedBy?.[state.user] ? "👁 Просмотрено" : "👁 Отметить просмотрено";
+    viewedBtn.style.marginTop = "6px";
+    viewedBtn.onclick = async () => {
+        if (!m.viewedBy) m.viewedBy = {};
+        m.viewedBy[state.user] = true;
+        await updateDoc(doc(db, "movies", m.id), { viewedBy: m.viewedBy });
+        await loadMovies();
+    };
+    main.appendChild(viewedBtn);
+
     const r = document.createElement("div");
     r.className = "rating";
     for (let i=1;i<=10;i++) {
