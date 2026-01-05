@@ -91,7 +91,7 @@ button { cursor: pointer; }
     border: none;
     cursor: pointer;
     width: 100%;
-    text-align: left;
+    text-align: center;
 }
 .viewed-list {
     display: none;
@@ -295,18 +295,16 @@ function renderMain() {
         <p>Средняя оценка пользователей: ${avg(m)}</p>
     `;
 
- // --- кнопка "просмотрено" с глазиком ---
-const viewedBtn = document.createElement("button");
-viewedBtn.textContent = m.viewedBy?.[state.user] ? "👁 Просмотрено" : "👁 Отметить просмотрено";
-viewedBtn.style.marginTop = "6px";
-
-// Центрирование текста
-viewedBtn.style.display = "block";      // чтобы кнопка занимала всю ширину
-viewedBtn.style.width = "100%";         // ширина кнопки 100%
-viewedBtn.style.textAlign = "center";   // текст по центру
-viewedBtn.style.padding = "8px";        // чуть больше пространства внутри
-viewedBtn.style.fontSize = "16px";      // при необходимости размер шрифта
-viewedBtn.style.cursor = "pointer";     // курсор-рука при наведении
+    // --- кнопка "просмотрено" с глазиком ---
+    const viewedBtn = document.createElement("button");
+    viewedBtn.textContent = m.viewedBy?.[state.user] ? "👁 Просмотрено" : "👁 Отметить просмотрено";
+    viewedBtn.style.marginTop = "6px";
+    viewedBtn.onclick = async () => {
+        if (!m.viewedBy) m.viewedBy = {};
+        m.viewedBy[state.user] = true;
+        await updateDoc(doc(db, "movies", m.id), { viewedBy: m.viewedBy });
+        await loadMovies();
+    };
     main.appendChild(viewedBtn);
 
     const r = document.createElement("div");
@@ -322,7 +320,6 @@ viewedBtn.style.cursor = "pointer";     // курсор-рука при наве
         };
         r.appendChild(bt);
     }
-    
     main.appendChild(r);
 
     if (state.user === "Кола") {
@@ -354,6 +351,5 @@ loadMovies();
 <div id="main"></div>
 </body>
 </html>
-
 
 
