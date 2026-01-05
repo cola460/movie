@@ -178,8 +178,7 @@ function renderMain() {
     `;
 
     if (!selectedMovieId) {
-        main.innerHTML += "<p>Выберите фильм слева</p>";
-        return;
+    return; // больше ничего не показываем, если фильм не выбран
     }
 
     const m = state.movies.find(x=>x.id===selectedMovieId);
@@ -259,3 +258,4 @@ loadMovies();
 <div id="main"></div>
 </body>
 </html>
+
