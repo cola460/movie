@@ -293,7 +293,17 @@ function renderMain() {
         <p>Жанры: ${m.genres}</p>
         <p>Средняя оценка пользователей: ${avg(m)}</p>
     `;
-
+// --- кнопка "просмотрено" ---
+const viewedBtn = document.createElement("button");
+viewedBtn.textContent = m.viewedBy?.[state.user] ? "👁 Просмотрено" : "👁 Отметить просмотрено";
+viewedBtn.style.marginTop = "6px";
+viewedBtn.onclick = async () => {
+    if (!m.viewedBy) m.viewedBy = {};
+    m.viewedBy[state.user] = true; // помечаем как просмотренный
+    await updateDoc(doc(db, "movies", m.id), { viewedBy: m.viewedBy });
+    await loadMovies(); // обновляем sidebar
+};
+main.appendChild(viewedBtn);
     const r = document.createElement("div");
     r.className = "rating";
     for (let i=1;i<=10;i++) {
