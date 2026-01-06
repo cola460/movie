@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<!-- Favicon -->
 <link rel="icon" type="image/png" href="favicon-32x32.png">
 <title>RR - Смотрим</title>
 
@@ -40,6 +41,7 @@ button { cursor: pointer; }
 .selected { background: #555; }
 .rating button { width: 32px; margin: 2px; }
 
+/* ПРОФИЛЬ В ЛЕВОМ НИЖНЕМ УГЛУ */
 .profile {
     position: fixed;
     bottom: 20px;
@@ -47,6 +49,55 @@ button { cursor: pointer; }
     background: #2b2b2b;
     padding: 10px 15px;
     border: 1px solid #444;
+}
+.profile strong {
+    display: block;
+    margin-bottom: 6px;
+}
+
+/* ЛОГИН ПО ЦЕНТРУ */
+.login-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}
+.login-container input,
+.login-container button {
+    width: 220px;
+    padding: 8px 10px;
+    margin: 5px 0;
+}
+
+/* ПОЛЕ И КНОПКА ДЛЯ ДОБАВЛЕНИЯ ФИЛЬМА */
+.add-movie-container {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.add-movie-container input,
+.add-movie-container button {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.viewed-container {
+    margin-top: 20px;
+}
+.viewed-toggle {
+    background: #3a3a3a;
+    padding: 6px 10px;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+}
+.viewed-list {
+    display: none;
+    margin-top: 6px;
+    border-top: 1px solid #444;
+    padding-top: 6px;
 }
 </style>
 
@@ -69,11 +120,14 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-let state = { user: localStorage.getItem("movieAppUser"), movies: [], viewedOpen: false };
+let state = { user: null, movies: [], viewedOpen: false };
 let selectedMovieId = null;
 
 const sidebar = document.getElementById("sidebar");
 const main = document.getElementById("main");
+
+const savedUser = localStorage.getItem("movieAppUser");
+if (savedUser) state.user = savedUser;
 
 function avg(movie) {
     const v = Object.values(movie.userRatings || {});
@@ -89,35 +143,15 @@ async function loadGenres() {
 }
 await loadGenres();
 
-/* 🔹 НОВОЕ: трейлер */
-async function fetchTrailer(movieId) {
-    const res = await fetch(`https://api.themoviedb.org/3/movie/${movieId}/videos?api_key=${TMDB_API_KEY}&language=ru-RU`);
-    const data = await res.json();
-    const t = data.results.find(v => v.site === "YouTube" && v.type === "Trailer");
-    return t ? t.key : null;
-}
-
 async function fetchMovie(title) {
     const res = await fetch(
         `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&language=ru-RU`
     );
     const data = await res.json();
-    const movie = data.results?.[0];
+    const movie = data.results?.[0] || null;
     if (!movie) return null;
-
-    return {
-        title: movie.title,
-        poster: movie.poster_path ? IMG + movie.poster_path : "",
-        tmdbRating: movie.vote_average?.toFixed(1) || "—",
-        year: movie.release_date?.slice(0,4) || "",
-        overview: movie.overview || "Описание отсутствует",
-        genres: movie.genre_ids.map(id => genresMap[id]).join(", "),
-        trailer: await fetchTrailer(movie.id),
-        userRatings: {},
-        viewedBy: {},
-        createdAt: Date.now(),
-        creator: state.user
-    };
+    const genreNames = movie.genre_ids.map(id => genresMap[id]).join(", ");
+    return { ...movie, genreNames };
 }
 
 async function loadMovies() {
@@ -129,13 +163,21 @@ async function loadMovies() {
 function renderSidebar() {
     sidebar.innerHTML = "<h2>Фильмы</h2>";
 
-    state.movies.forEach(m => {
-        const d = document.createElement("div");
-        d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
-        d.innerHTML = `<strong>${m.title}</strong><br>⭐ ${avg(m)}`;
-        d.onclick = () => { selectedMovieId = m.id; render(); };
-        sidebar.appendChild(d);
-    });
+    // --- основной список (новые сверху) ---
+    state.movies
+        .filter(m => !m.viewedBy?.[state.user])
+        .sort((a,b)=>b.createdAt - a.createdAt)
+        .forEach(m => {
+            const d = document.createElement("div");
+            d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
+            d.innerHTML = `<strong>${m.title}</strong><br>⭐ ${avg(m)}`;
+            d.onclick = () => { selectedMovieId = m.id; render(); };
+            sidebar.appendChild(d);
+        });
+
+    // --- кнопка добавления фильма ---
+    const container = document.createElement("div");
+    container.className = "add-movie-container";
 
     const i = document.createElement("input");
     i.placeholder = "Название фильма";
@@ -145,15 +187,72 @@ function renderSidebar() {
 
     b.onclick = async () => {
         if (!i.value.trim()) return;
+        b.disabled = true;
+        b.textContent = "Поиск...";
+
         const m = await fetchMovie(i.value.trim());
-        if (!m) return alert("Не найдено");
-        await setDoc(doc(db, "movies", crypto.randomUUID()), m);
+        if (!m) { 
+            b.textContent = "Не найдено"; 
+            setTimeout(()=>{b.textContent="➕ Добавить"; b.disabled=false;},1000); 
+            return; 
+        }
+
+        const newMovie = {
+            title: m.title,
+            poster: m.poster_path ? IMG + m.poster_path : "",
+            tmdbRating: m.vote_average?.toFixed(1) || "—",
+            year: m.release_date?.slice(0,4) || "",
+            userRatings: {},
+            createdAt: Date.now(),
+            creator: state.user,
+            genres: m.genreNames,
+            viewedBy: {}
+        };
+
+        await setDoc(doc(db, "movies", crypto.randomUUID()), newMovie);
+        await loadMovies();
+
         i.value = "";
-        loadMovies();
+        b.disabled = false;
+        b.textContent = "➕ Добавить";
     };
 
-    sidebar.appendChild(i);
-    sidebar.appendChild(b);
+    container.appendChild(i);
+    container.appendChild(b);
+    sidebar.appendChild(container);
+
+    // --- блок просмотренных фильмов ---
+    const viewedContainer = document.createElement("div");
+    viewedContainer.className = "viewed-container";
+
+    const toggleBtn = document.createElement("button");
+    toggleBtn.className = "viewed-toggle";
+    toggleBtn.textContent = "👁 Просмотрено";
+
+    const viewedList = document.createElement("div");
+    viewedList.className = "viewed-list";
+    viewedList.style.display = state.viewedOpen ? "block" : "none";
+
+    toggleBtn.onclick = () => {
+        state.viewedOpen = !state.viewedOpen;
+        render();
+    };
+
+    // --- просмотренные фильмы (новые сверху) ---
+    state.movies
+        .filter(m => m.viewedBy?.[state.user])
+        .sort((a,b)=>b.createdAt - a.createdAt)
+        .forEach(m => {
+            const d = document.createElement("div");
+            d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
+            d.innerHTML = `<strong>${m.title}</strong> ⭐ ${avg(m)}`;
+            d.onclick = () => { selectedMovieId = m.id; render(); };
+            viewedList.appendChild(d);
+        });
+
+    viewedContainer.appendChild(toggleBtn);
+    viewedContainer.appendChild(viewedList);
+    sidebar.appendChild(viewedContainer);
 }
 
 function renderMain() {
@@ -164,37 +263,78 @@ function renderMain() {
             <div class="login-container">
                 <input id="nick" placeholder="Ник">
                 <button id="login">Войти</button>
-            </div>`;
+            </div>
+        `;
         document.getElementById("login").onclick = () => {
-            state.user = document.getElementById("nick").value.trim();
-            localStorage.setItem("movieAppUser", state.user);
+            const nick = document.getElementById("nick").value.trim();
+            if (!nick) return;
+            state.user = nick;
+            localStorage.setItem("movieAppUser", nick);
             render();
         };
         return;
     }
 
+    const userMovies = state.movies.filter(m => m.creator === state.user);
+    main.innerHTML += `
+    <div class="profile">
+        <strong>${state.user}</strong>
+        Добавлено фильмов: ${userMovies.length}
+    </div>
+`;
+
     if (!selectedMovieId) return;
 
-    const m = state.movies.find(x => x.id === selectedMovieId);
+    const m = state.movies.find(x=>x.id===selectedMovieId);
 
-    main.innerHTML = `
+    main.innerHTML += `
         <h2>${m.title} (${m.year})</h2>
         ${m.poster ? `<img src="${m.poster}">` : ""}
         <p>TMDb: ${m.tmdbRating}</p>
         <p>Жанры: ${m.genres}</p>
-        <p><strong>Описание:</strong><br>${m.overview}</p>
-        <p>Средняя оценка: ${avg(m)}</p>
+        <p>Средняя оценка пользователей: ${avg(m)}</p>
     `;
 
-    if (m.trailer) {
-        main.innerHTML += `
-            <h3>🎬 Трейлер</h3>
-            <iframe width="560" height="315"
-                src="https://www.youtube.com/embed/${m.trailer}"
-                frameborder="0"
-                allowfullscreen>
-            </iframe>
-        `;
+    // --- кнопка "просмотрено" с глазиком ---
+    const viewedBtn = document.createElement("button");
+    viewedBtn.textContent = m.viewedBy?.[state.user] ? "👁 Просмотрено" : "👁 Отметить просмотрено";
+    viewedBtn.style.marginTop = "6px";
+    viewedBtn.onclick = async () => {
+        if (!m.viewedBy) m.viewedBy = {};
+        m.viewedBy[state.user] = true;
+        await updateDoc(doc(db, "movies", m.id), { viewedBy: m.viewedBy });
+        await loadMovies();
+    };
+    main.appendChild(viewedBtn);
+
+    const r = document.createElement("div");
+    r.className = "rating";
+    for (let i=1;i<=10;i++) {
+        const bt = document.createElement("button");
+        bt.textContent = i;
+        if (m.userRatings[state.user]===i) bt.style.background="#555";
+        bt.onclick = async () => {
+            m.userRatings[state.user] = i;
+            await updateDoc(doc(db, "movies", m.id), { userRatings: m.userRatings });
+            await loadMovies();
+        };
+        r.appendChild(bt);
+    }
+    main.appendChild(r);
+
+    if (state.user === "Кола") {
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "🗑 Удалить фильм";
+        delBtn.style.background = "#a33";
+        delBtn.style.marginTop = "10px";
+        delBtn.onclick = async () => {
+            if (confirm(`Вы уверены, что хотите удалить "${m.title}"?`)) {
+                await deleteDoc(doc(db, "movies", m.id));
+                selectedMovieId = null;
+                await loadMovies();
+            }
+        };
+        main.appendChild(delBtn);
     }
 }
 
@@ -211,3 +351,5 @@ loadMovies();
 <div id="main"></div>
 </body>
 </html>
+
+
