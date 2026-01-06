@@ -2,11 +2,11 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<!-- Favicon -->
 <link rel="icon" type="image/png" href="favicon-32x32.png">
 <title>RR - Смотрим</title>
 
 <style>
+/* СТИЛИ НЕ ТРОГАЛ */
 body {
     margin: 0;
     background: #1e1e1e;
@@ -40,8 +40,6 @@ button { cursor: pointer; }
 .movie-item:hover { background: #3a3a3a; }
 .selected { background: #555; }
 .rating button { width: 32px; margin: 2px; }
-
-/* ПРОФИЛЬ В ЛЕВОМ НИЖНЕМ УГЛУ */
 .profile {
     position: fixed;
     bottom: 20px;
@@ -54,8 +52,6 @@ button { cursor: pointer; }
     display: block;
     margin-bottom: 6px;
 }
-
-/* ЛОГИН ПО ЦЕНТРУ */
 .login-container {
     display: flex;
     flex-direction: column;
@@ -69,8 +65,6 @@ button { cursor: pointer; }
     padding: 8px 10px;
     margin: 5px 0;
 }
-
-/* ПОЛЕ И КНОПКА ДЛЯ ДОБАВЛЕНИЯ ФИЛЬМА */
 .add-movie-container {
     display: flex;
     flex-direction: column;
@@ -81,7 +75,6 @@ button { cursor: pointer; }
     width: 100%;
     box-sizing: border-box;
 }
-
 .viewed-container {
     margin-top: 20px;
 }
@@ -151,7 +144,23 @@ async function fetchMovie(title) {
     const movie = data.results?.[0] || null;
     if (!movie) return null;
     const genreNames = movie.genre_ids.map(id => genresMap[id]).join(", ");
-    return { ...movie, genreNames };
+
+    // 🔹 ADDED
+    return { 
+        ...movie, 
+        genreNames,
+        overview: movie.overview || ""
+    };
+}
+
+// 🔹 ADDED — трейлер
+async function fetchTrailer(movieId) {
+    const res = await fetch(
+        `https://api.themoviedb.org/3/movie/${movieId}/videos?api_key=${TMDB_API_KEY}&language=ru-RU`
+    );
+    const data = await res.json();
+    const yt = data.results?.find(v => v.site === "YouTube" && v.type === "Trailer");
+    return yt ? `https://www.youtube.com/embed/${yt.key}` : null;
 }
 
 async function loadMovies() {
@@ -163,7 +172,6 @@ async function loadMovies() {
 function renderSidebar() {
     sidebar.innerHTML = "<h2>Фильмы</h2>";
 
-    // --- основной список (новые сверху) ---
     state.movies
         .filter(m => !m.viewedBy?.[state.user])
         .sort((a,b)=>b.createdAt - a.createdAt)
@@ -175,7 +183,6 @@ function renderSidebar() {
             sidebar.appendChild(d);
         });
 
-    // --- кнопка добавления фильма ---
     const container = document.createElement("div");
     container.className = "add-movie-container";
 
@@ -197,11 +204,16 @@ function renderSidebar() {
             return; 
         }
 
+        // 🔹 ADDED
+        const trailer = await fetchTrailer(m.id);
+
         const newMovie = {
             title: m.title,
             poster: m.poster_path ? IMG + m.poster_path : "",
             tmdbRating: m.vote_average?.toFixed(1) || "—",
             year: m.release_date?.slice(0,4) || "",
+            overview: m.overview,     // 🔹 ADDED
+            trailer: trailer,         // 🔹 ADDED
             userRatings: {},
             createdAt: Date.now(),
             creator: state.user,
@@ -221,7 +233,6 @@ function renderSidebar() {
     container.appendChild(b);
     sidebar.appendChild(container);
 
-    // --- блок просмотренных фильмов ---
     const viewedContainer = document.createElement("div");
     viewedContainer.className = "viewed-container";
 
@@ -238,7 +249,6 @@ function renderSidebar() {
         render();
     };
 
-    // --- просмотренные фильмы (новые сверху) ---
     state.movies
         .filter(m => m.viewedBy?.[state.user])
         .sort((a,b)=>b.createdAt - a.createdAt)
@@ -277,11 +287,11 @@ function renderMain() {
 
     const userMovies = state.movies.filter(m => m.creator === state.user);
     main.innerHTML += `
-    <div class="profile">
-        <strong>${state.user}</strong>
-        Добавлено фильмов: ${userMovies.length}
-    </div>
-`;
+        <div class="profile">
+            <strong>${state.user}</strong>
+            Добавлено фильмов: ${userMovies.length}
+        </div>
+    `;
 
     if (!selectedMovieId) return;
 
@@ -295,7 +305,23 @@ function renderMain() {
         <p>Средняя оценка пользователей: ${avg(m)}</p>
     `;
 
-    // --- кнопка "просмотрено" с глазиком ---
+    // 🔹 ADDED — описание
+    if (m.overview) {
+        main.innerHTML += `<p><strong>Описание:</strong><br>${m.overview}</p>`;
+    }
+
+    // 🔹 ADDED — трейлер
+    if (m.trailer) {
+        main.innerHTML += `
+            <iframe width="560" height="315"
+                src="${m.trailer}"
+                frameborder="0"
+                allowfullscreen
+                style="margin-top:10px">
+            </iframe>
+        `;
+    }
+
     const viewedBtn = document.createElement("button");
     viewedBtn.textContent = m.viewedBy?.[state.user] ? "👁 Просмотрено" : "👁 Отметить просмотрено";
     viewedBtn.style.marginTop = "6px";
@@ -351,5 +377,3 @@ loadMovies();
 <div id="main"></div>
 </body>
 </html>
-
-
