@@ -298,28 +298,34 @@ function renderMain() {
     const m = state.movies.find(x=>x.id===selectedMovieId);
 
     main.innerHTML += `
-        <h2>${m.title} (${m.year})</h2>
-        ${m.poster ? `<img src="${m.poster}">` : ""}
-        <p>TMDb: ${m.tmdbRating}</p>
-        <p>Жанры: ${m.genres}</p>
-        <p>Средняя оценка пользователей: ${avg(m)}</p>
-    `;
+    <h2>${m.title} (${m.year})</h2>
+
+    <div style="display:flex; gap:20px; align-items:flex-center; margin-bottom:10px;">
+        <div>
+            ${m.poster ? `<img src="${m.poster}" style="display:block;">` : ""}
+            <div id="viewedBtnContainer"></div>
+        </div>
+
+        <div>
+            ${m.trailer ? `
+                <iframe width="560" height="315"
+                    src="${m.trailer}"
+                    frameborder="0"
+                    allowfullscreen>
+					style="align-self:center;">
+                </iframe>
+            ` : ""}
+        </div>
+    </div>
+
+    <p>TMDb: ${m.tmdbRating}</p>
+    <p>Жанры: ${m.genres}</p>
+    <p>Средняя оценка пользователей: ${avg(m)}</p>
+`;
 
     // 🔹 ADDED — описание
     if (m.overview) {
         main.innerHTML += `<p><strong>Описание:</strong><br>${m.overview}</p>`;
-    }
-
-    // 🔹 ADDED — трейлер
-    if (m.trailer) {
-        main.innerHTML += `
-            <iframe width="560" height="315"
-                src="${m.trailer}"
-                frameborder="0"
-                allowfullscreen
-                style="margin-top:10px">
-            </iframe>
-        `;
     }
 
     const viewedBtn = document.createElement("button");
@@ -331,7 +337,7 @@ function renderMain() {
         await updateDoc(doc(db, "movies", m.id), { viewedBy: m.viewedBy });
         await loadMovies();
     };
-    main.appendChild(viewedBtn);
+    document.getElementById("viewedBtnContainer").appendChild(viewedBtn);
 
     const r = document.createElement("div");
     r.className = "rating";
