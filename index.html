@@ -6,7 +6,6 @@
 <title>RR - Смотрим</title>
 
 <style>
-/* СТИЛИ НЕ ТРОГАЛ */
 body {
     margin: 0;
     background: #1e1e1e;
@@ -144,16 +143,9 @@ async function fetchMovie(title) {
     const movie = data.results?.[0] || null;
     if (!movie) return null;
     const genreNames = movie.genre_ids.map(id => genresMap[id]).join(", ");
-
-    // 🔹 ADDED
-    return { 
-        ...movie, 
-        genreNames,
-        overview: movie.overview || ""
-    };
+    return { ...movie, genreNames, overview: movie.overview || "" };
 }
 
-// 🔹 ADDED — трейлер
 async function fetchTrailer(movieId) {
     const res = await fetch(
         `https://api.themoviedb.org/3/movie/${movieId}/videos?api_key=${TMDB_API_KEY}&language=ru-RU`
@@ -173,7 +165,7 @@ function renderSidebar() {
     sidebar.innerHTML = "<h2>Фильмы</h2>";
 
     state.movies
-        .filter(m => !m.viewedBy?.[state.user])
+        .filter(m => !m.viewed)
         .sort((a,b)=>b.createdAt - a.createdAt)
         .forEach(m => {
             const d = document.createElement("div");
@@ -198,13 +190,12 @@ function renderSidebar() {
         b.textContent = "Поиск...";
 
         const m = await fetchMovie(i.value.trim());
-        if (!m) { 
-            b.textContent = "Не найдено"; 
-            setTimeout(()=>{b.textContent="➕ Добавить"; b.disabled=false;},1000); 
-            return; 
+        if (!m) {
+            b.textContent = "Не найдено";
+            setTimeout(()=>{b.textContent="➕ Добавить"; b.disabled=false;},1000);
+            return;
         }
 
-        // 🔹 ADDED
         const trailer = await fetchTrailer(m.id);
 
         const newMovie = {
@@ -212,13 +203,13 @@ function renderSidebar() {
             poster: m.poster_path ? IMG + m.poster_path : "",
             tmdbRating: m.vote_average?.toFixed(1) || "—",
             year: m.release_date?.slice(0,4) || "",
-            overview: m.overview,     // 🔹 ADDED
-            trailer: trailer,         // 🔹 ADDED
+            overview: m.overview,
+            trailer: trailer,
             userRatings: {},
             createdAt: Date.now(),
             creator: state.user,
             genres: m.genreNames,
-            viewedBy: {}
+            viewed: false
         };
 
         await setDoc(doc(db, "movies", crypto.randomUUID()), newMovie);
@@ -250,7 +241,7 @@ function renderSidebar() {
     };
 
     state.movies
-        .filter(m => m.viewedBy?.[state.user])
+        .filter(m => m.viewed)
         .sort((a,b)=>b.createdAt - a.createdAt)
         .forEach(m => {
             const d = document.createElement("div");
@@ -300,9 +291,9 @@ function renderMain() {
     main.innerHTML += `
     <h2>${m.title} (${m.year})</h2>
 
-    <div style="display:flex; gap:20px; align-items:flex-center; margin-bottom:10px;">
+    <div style="display:flex; gap:20px; margin-bottom:10px;">
         <div>
-            ${m.poster ? `<img src="${m.poster}" style="display:block;">` : ""}
+            ${m.poster ? `<img src="${m.poster}">` : ""}
             <div id="viewedBtnContainer"></div>
         </div>
 
@@ -312,7 +303,6 @@ function renderMain() {
                     src="${m.trailer}"
                     frameborder="0"
                     allowfullscreen>
-					style="align-self:center;">
                 </iframe>
             ` : ""}
         </div>
@@ -323,18 +313,14 @@ function renderMain() {
     <p>Средняя оценка пользователей: ${avg(m)}</p>
 `;
 
-    // 🔹 ADDED — описание
     if (m.overview) {
         main.innerHTML += `<p><strong>Описание:</strong><br>${m.overview}</p>`;
     }
 
     const viewedBtn = document.createElement("button");
-    viewedBtn.textContent = m.viewedBy?.[state.user] ? "👁 Просмотрено" : "👁 Отметить просмотрено";
-    viewedBtn.style.marginTop = "6px";
+    viewedBtn.textContent = m.viewed ? "👁 Просмотрено" : "👁 Отметить просмотрено";
     viewedBtn.onclick = async () => {
-        if (!m.viewedBy) m.viewedBy = {};
-        m.viewedBy[state.user] = true;
-        await updateDoc(doc(db, "movies", m.id), { viewedBy: m.viewedBy });
+        await updateDoc(doc(db, "movies", m.id), { viewed: true });
         await loadMovies();
     };
     document.getElementById("viewedBtnContainer").appendChild(viewedBtn);
