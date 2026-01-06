@@ -24,6 +24,7 @@ body {
     flex: 1;
     padding: 20px;
     overflow-y: auto;
+    position: relative;
 }
 input, button {
     border-radius: 6px;
@@ -47,22 +48,6 @@ button { cursor: pointer; }
     padding: 10px 15px;
     border: 1px solid #444;
 }
-
-.login-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-}
-
-.add-movie-container {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.viewed-list { display: none; }
 </style>
 
 <script type="module">
@@ -84,7 +69,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-let state = { user: localStorage.getItem("movieAppUser"), movies: [] };
+let state = { user: localStorage.getItem("movieAppUser"), movies: [], viewedOpen: false };
 let selectedMovieId = null;
 
 const sidebar = document.getElementById("sidebar");
@@ -104,8 +89,9 @@ async function loadGenres() {
 }
 await loadGenres();
 
-async function fetchTrailer(id) {
-    const res = await fetch(`https://api.themoviedb.org/3/movie/${id}/videos?api_key=${TMDB_API_KEY}&language=ru-RU`);
+/* 🔹 НОВОЕ: трейлер */
+async function fetchTrailer(movieId) {
+    const res = await fetch(`https://api.themoviedb.org/3/movie/${movieId}/videos?api_key=${TMDB_API_KEY}&language=ru-RU`);
     const data = await res.json();
     const t = data.results.find(v => v.site === "YouTube" && v.type === "Trailer");
     return t ? t.key : null;
@@ -116,17 +102,17 @@ async function fetchMovie(title) {
         `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&language=ru-RU`
     );
     const data = await res.json();
-    const m = data.results?.[0];
-    if (!m) return null;
+    const movie = data.results?.[0];
+    if (!movie) return null;
 
     return {
-        title: m.title,
-        poster: m.poster_path ? IMG + m.poster_path : "",
-        tmdbRating: m.vote_average?.toFixed(1) || "—",
-        year: m.release_date?.slice(0,4) || "",
-        overview: m.overview || "Описание отсутствует",
-        genres: m.genre_ids.map(id => genresMap[id]).join(", "),
-        trailer: await fetchTrailer(m.id),
+        title: movie.title,
+        poster: movie.poster_path ? IMG + movie.poster_path : "",
+        tmdbRating: movie.vote_average?.toFixed(1) || "—",
+        year: movie.release_date?.slice(0,4) || "",
+        overview: movie.overview || "Описание отсутствует",
+        genres: movie.genre_ids.map(id => genresMap[id]).join(", "),
+        trailer: await fetchTrailer(movie.id),
         userRatings: {},
         viewedBy: {},
         createdAt: Date.now(),
@@ -151,26 +137,23 @@ function renderSidebar() {
         sidebar.appendChild(d);
     });
 
-    const input = document.createElement("input");
-    input.placeholder = "Название фильма";
+    const i = document.createElement("input");
+    i.placeholder = "Название фильма";
 
-    const btn = document.createElement("button");
-    btn.textContent = "➕ Добавить";
+    const b = document.createElement("button");
+    b.textContent = "➕ Добавить";
 
-    btn.onclick = async () => {
-        if (!input.value) return;
-        btn.disabled = true;
-        const movie = await fetchMovie(input.value);
-        if (!movie) return alert("Не найдено");
-
-        await setDoc(doc(db, "movies", crypto.randomUUID()), movie);
-        input.value = "";
-        btn.disabled = false;
+    b.onclick = async () => {
+        if (!i.value.trim()) return;
+        const m = await fetchMovie(i.value.trim());
+        if (!m) return alert("Не найдено");
+        await setDoc(doc(db, "movies", crypto.randomUUID()), m);
+        i.value = "";
         loadMovies();
     };
 
-    sidebar.appendChild(input);
-    sidebar.appendChild(btn);
+    sidebar.appendChild(i);
+    sidebar.appendChild(b);
 }
 
 function renderMain() {
@@ -181,10 +164,9 @@ function renderMain() {
             <div class="login-container">
                 <input id="nick" placeholder="Ник">
                 <button id="login">Войти</button>
-            </div>
-        `;
+            </div>`;
         document.getElementById("login").onclick = () => {
-            state.user = document.getElementById("nick").value;
+            state.user = document.getElementById("nick").value.trim();
             localStorage.setItem("movieAppUser", state.user);
             render();
         };
@@ -193,7 +175,7 @@ function renderMain() {
 
     if (!selectedMovieId) return;
 
-    const m = state.movies.find(x=>x.id===selectedMovieId);
+    const m = state.movies.find(x => x.id === selectedMovieId);
 
     main.innerHTML = `
         <h2>${m.title} (${m.year})</h2>
@@ -209,24 +191,11 @@ function renderMain() {
             <h3>🎬 Трейлер</h3>
             <iframe width="560" height="315"
                 src="https://www.youtube.com/embed/${m.trailer}"
+                frameborder="0"
                 allowfullscreen>
             </iframe>
         `;
     }
-
-    const r = document.createElement("div");
-    r.className = "rating";
-    for (let i=1;i<=10;i++) {
-        const b = document.createElement("button");
-        b.textContent = i;
-        b.onclick = async () => {
-            m.userRatings[state.user] = i;
-            await updateDoc(doc(db, "movies", m.id), { userRatings: m.userRatings });
-            loadMovies();
-        };
-        r.appendChild(b);
-    }
-    main.appendChild(r);
 }
 
 function render() {
