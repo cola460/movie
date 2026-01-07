@@ -170,8 +170,14 @@ async function fetchMovie(title) {
         `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&language=ru-RU`
     );
     const data = await res.json();
-    const movie = data.results?.[0] || null;
-    if (!movie) return null;
+    if (!data.results || !data.results.length) return null;
+
+    // ищем точное совпадение по названию
+    let movie = data.results.find(m => m.title.toLowerCase() === title.toLowerCase());
+
+    // если точного совпадения нет — берём первый
+    if (!movie) movie = data.results[0];
+
     const genreNames = movie.genre_ids.map(id => genresMap[id]).join(", ");
     return { ...movie, genreNames, overview: movie.overview || "" };
 }
