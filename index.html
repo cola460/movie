@@ -351,7 +351,8 @@ function renderMain() {
     </div>
     `;
 
-    // Кнопка "Просмотрено"
+ // Кнопка "Просмотрено" — только для Кола
+if (state.user === "Кола") {
     const viewedBtn = document.createElement("button");
     viewedBtn.textContent = m.viewed ? "👁 Просмотрено" : "👁 Отметить просмотрено";
     viewedBtn.style.display = "block";
@@ -364,6 +365,7 @@ function renderMain() {
         await loadMovies();
     };
     main.appendChild(viewedBtn);
+}
 
     // Текст под кнопкой: TMDb, жанры, описание
     const textDiv = document.createElement("div");
