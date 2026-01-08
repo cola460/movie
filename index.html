@@ -42,7 +42,7 @@ button { cursor: pointer; }
 .profile {
     position: fixed;
     bottom: 20px;
-    right: 20px;
+    left: 20px;
     background: #2b2b2b;
     padding: 10px 15px;
     border: 1px solid #444;
@@ -200,19 +200,18 @@ async function loadMovies() {
 function renderSidebar() {
     sidebar.innerHTML = "<h2>Фильмы</h2>";
 
-    // Список непросмотренных фильмов
-    state.movies
-        .filter(m => !m.viewed)
-        .sort((a,b) => b.createdAt - a.createdAt)
-        .forEach(m => {
-            const d = document.createElement("div");
-            d.className = "movie-item" + (m.id === selectedMovieId ? " selected" : "");
-            d.innerHTML = `<strong>${m.title}</strong> <span style="float:right; color:#ccc;">⭐ ${m.tmdbRating}</span>`;
-            d.onclick = () => { selectedMovieId = m.id; render(); };
-            sidebar.appendChild(d);
-        });
+state.movies
+    .filter(m => !m.viewed)
+    .sort((a,b)=>b.createdAt - a.createdAt)
+    .forEach(m => {
+        const d = document.createElement("div");
+        d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
+        d.innerHTML = `<strong>${m.title}</strong> <span style="float:right; color:#ccc;">⭐ ${m.tmdbRating}</span>`;
+        d.onclick = () => { selectedMovieId = m.id; render(); };
+        sidebar.appendChild(d);
+    });
 
-    // ======= Добавление нового фильма =======
+
     const container = document.createElement("div");
     container.className = "add-movie-container";
 
@@ -262,29 +261,6 @@ function renderSidebar() {
     container.appendChild(b);
     sidebar.appendChild(container);
 
-    // ======= Колесо фортуны =======
-    const wheelContainer = document.createElement("div");
-    wheelContainer.style.marginTop = "20px";
-    wheelContainer.style.textAlign = "center";
-
-    const canvas = document.createElement("canvas");
-    canvas.id = "roulette-wheel";
-    canvas.width = 300;
-    canvas.height = 300;
-    wheelContainer.appendChild(canvas);
-
-    const spinBtn = document.createElement("button");
-    spinBtn.id = "spin-wheel";
-    spinBtn.textContent = "🎲 Крутить колесо фортуны";
-    spinBtn.style.marginTop = "10px";
-    wheelContainer.appendChild(spinBtn);
-
-    sidebar.appendChild(wheelContainer);
-
-    // Рисуем колесо после обновления фильмов
-    renderWheel();
-
-    // ======= Просмотренные фильмы =======
     const viewedContainer = document.createElement("div");
     viewedContainer.className = "viewed-container";
 
@@ -301,22 +277,21 @@ function renderSidebar() {
         render();
     };
 
-    state.movies
-        .filter(m => m.viewed)
-        .sort((a,b) => (b.viewedAt || 0) - (a.viewedAt || 0))
-        .forEach(m => {
-            const d = document.createElement("div");
-            d.className = "movie-item" + (m.id === selectedMovieId ? " selected" : "");
-            d.innerHTML = `<strong>${m.title}</strong> <span style="float:right; color:#ccc;">⭐ ${m.tmdbRating}</span>`;
-            d.onclick = () => { selectedMovieId = m.id; render(); };
-            viewedList.appendChild(d);
-        });
+state.movies
+    .filter(m => m.viewed)
+    .sort((a,b) => (b.viewedAt || 0) - (a.viewedAt || 0)) // новые сверху
+    .forEach(m => {
+        const d = document.createElement("div");
+        d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
+        d.innerHTML = `<strong>${m.title}</strong> <span style="float:right; color:#ccc;">⭐ ${m.tmdbRating}</span>`;
+        d.onclick = () => { selectedMovieId = m.id; render(); };
+        viewedList.appendChild(d);
+    });
 
     viewedContainer.appendChild(toggleBtn);
     viewedContainer.appendChild(viewedList);
     sidebar.appendChild(viewedContainer);
 }
-
 
 function renderMain() {
     main.innerHTML = "";
@@ -488,86 +463,6 @@ function render() {
 }
 
 loadMovies();
-function drawWheel(movies, ctx, rotation) {
-    const N = movies.length;
-    const angle = 2 * Math.PI / N;
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-    for (let i = 0; i < N; i++) {
-        const start = i * angle + rotation;
-        const end = start + angle;
-        ctx.beginPath();
-        ctx.moveTo(150, 150);
-        ctx.arc(150, 150, 140, start, end);
-        ctx.fillStyle = i % 2 === 0 ? "#4a90e2" : "#50e3c2";
-        ctx.fill();
-        ctx.strokeStyle = "#222";
-        ctx.stroke();
-
-        // Текст
-        ctx.save();
-        ctx.translate(150, 150);
-        ctx.rotate(start + angle/2);
-        ctx.textAlign = "right";
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 14px Arial";
-        ctx.fillText(movies[i].title, 130, 0);
-        ctx.restore();
-    }
-
-    // Стрелка сверху
-    ctx.beginPath();
-    ctx.moveTo(150, 10);
-    ctx.lineTo(140, 30);
-    ctx.lineTo(160, 30);
-    ctx.closePath();
-    ctx.fillStyle = "#a33";
-    ctx.fill();
-}
-
-function initWheel() {
-    const canvas = document.getElementById("roulette-wheel");
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-
-    const unviewedMovies = state.movies.filter(m => !m.viewed);
-    if (!unviewedMovies.length) return;
-
-    let rotation = 0;
-    drawWheel(unviewedMovies, ctx, rotation);
-
-    document.getElementById("spin-wheel").onclick = () => {
-        if (!unviewedMovies.length) return alert("Нет непросмотренных фильмов!");
-
-        const spins = Math.random() * 4 + 4; // 4-8 оборотов
-        const finalIndex = Math.floor(Math.random() * unviewedMovies.length);
-        const targetRotation = 2 * Math.PI * spins - finalIndex * 2 * Math.PI / unviewedMovies.length;
-
-        const duration = 3000; // 3 сек
-        const start = performance.now();
-
-        function animate(now) {
-            const t = Math.min(1, (now - start)/duration);
-            rotation = targetRotation * easeOutCubic(t);
-            drawWheel(unviewedMovies, ctx, rotation);
-            if (t < 1) requestAnimationFrame(animate);
-            else {
-                const chosenMovie = unviewedMovies[finalIndex];
-                selectedMovieId = chosenMovie.id;
-                render();
-                alert(`🎬 Сегодня смотрим: "${chosenMovie.title}"`);
-            }
-        }
-
-        requestAnimationFrame(animate);
-    };
-
-    function easeOutCubic(t){ return 1 - Math.pow(1-t,3); }
-}
-
-// Перерисовываем колесо при обновлении фильмов
-function renderWheel() { setTimeout(initWheel, 0); }
-
 </script>
 </head>
 <body>
