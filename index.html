@@ -42,7 +42,7 @@ button { cursor: pointer; }
 .profile {
     position: fixed;
     bottom: 20px;
-    right: 20px;   /* ← сюда */
+    left: 20px;
     background: #2b2b2b;
     padding: 10px 15px;
     border: 1px solid #444;
@@ -210,54 +210,6 @@ state.movies
         d.onclick = () => { selectedMovieId = m.id; render(); };
         sidebar.appendChild(d);
     });
-	function renderSidebar() {
-    sidebar.innerHTML = "<h2>Фильмы</h2>";
-
-    const unviewedMovies = state.movies.filter(m => !m.viewed).sort((a,b)=>b.createdAt - a.createdAt);
-
-    unviewedMovies.forEach(m => {
-        const d = document.createElement("div");
-        d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
-        d.innerHTML = `<strong>${m.title}</strong> <span style="float:right; color:#ccc;">⭐ ${m.tmdbRating}</span>`;
-        d.onclick = () => { selectedMovieId = m.id; render(); };
-        sidebar.appendChild(d);
-    });
-
-    // === РУЛЕТКА ===
-    if (unviewedMovies.length > 0) {
-        const rouletteBtn = document.createElement("button");
-        rouletteBtn.textContent = "🎲 Рулетка фильма";
-        rouletteBtn.onclick = async () => {
-            rouletteBtn.disabled = true;
-            rouletteBtn.textContent = "🎲 Крутим...";
-
-            const spinDuration = 2500; // время прокрутки
-            const spinInterval = 100;  // каждые 100 мс показываем новый фильм
-            let elapsed = 0;
-
-            const spin = () => {
-                const randomMovie = unviewedMovies[Math.floor(Math.random() * unviewedMovies.length)];
-                selectedMovieId = randomMovie.id;
-                renderMain(); // обновляем только правую часть
-            };
-
-            const intervalId = setInterval(() => {
-                spin();
-                elapsed += spinInterval;
-                if (elapsed >= spinDuration) {
-                    clearInterval(intervalId);
-                    rouletteBtn.disabled = false;
-                    rouletteBtn.textContent = "🎲 Рулетка фильма";
-                    alert(`Фильм выбран: ${state.movies.find(m => m.id === selectedMovieId).title}`);
-                }
-            }, spinInterval);
-        };
-        sidebar.appendChild(rouletteBtn);
-    }
-
-    // --- дальше твой код: добавление фильма и просмотренные ---
-}
-
 
 
     const container = document.createElement("div");
