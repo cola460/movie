@@ -127,6 +127,29 @@ button { cursor: pointer; }
     backdrop-filter: blur(8px); /* размывает то, что за блоком */
     color: #eee;
 }
+.tabs {
+    display: flex;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #444;
+}
+
+.tab {
+    padding: 8px 14px;
+    cursor: pointer;
+    background: #2b2b2b;
+    color: #ccc;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    margin-right: 6px;
+}
+
+.tab.active {
+    background: #1e1e1e;
+    color: #fff;
+    border: 1px solid #444;
+    border-bottom: none;
+}
+
 </style>
 
 <script type="module">
@@ -148,8 +171,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-let state = { user: null, movies: [], viewedOpen: false };
 let selectedMovieId = null;
+let state = {
+    user: null,
+    movies: [],
+    viewedOpen: false,
+    tab: "normal" // normal | horror
+};
 
 const sidebar = document.getElementById("sidebar");
 const main = document.getElementById("main");
@@ -199,9 +227,41 @@ async function loadMovies() {
 
 function renderSidebar() {
     sidebar.innerHTML = "<h2>Фильмы</h2>";
+	const tabs = document.createElement("div");
+tabs.className = "tabs";
+
+const normalTab = document.createElement("div");
+normalTab.className = "tab" + (state.tab === "normal" ? " active" : "");
+normalTab.textContent = "Обычные";
+
+normalTab.onclick = () => {
+    state.tab = "normal";
+    render();
+};
+
+const horrorTab = document.createElement("div");
+horrorTab.className = "tab" + (state.tab === "horror" ? " active" : "");
+horrorTab.textContent = "Ужастики";
+
+horrorTab.onclick = () => {
+    state.tab = "horror";
+    render();
+};
+
+tabs.appendChild(normalTab);
+tabs.appendChild(horrorTab);
+sidebar.appendChild(tabs);
 
 state.movies
-    .filter(m => !m.viewed)
+    .filter(m => {
+        if (m.viewed) return false;
+
+        const isHorror = m.genres?.toLowerCase().includes("ужасы");
+
+        return state.tab === "horror"
+            ? isHorror
+            : !isHorror;
+    })
     .sort((a,b)=>b.createdAt - a.createdAt)
     .forEach(m => {
         const d = document.createElement("div");
@@ -470,4 +530,3 @@ loadMovies();
 <div id="main"></div>
 </body>
 </html>
-
