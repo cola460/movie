@@ -13,21 +13,24 @@ body {
     font-family: Arial, sans-serif;
     display: flex;
     height: 100vh;
-	overflow: hidden;
+    overflow: hidden;
 }
+
 #sidebar {
     width: 320px;
     background: #2b2b2b;
     padding: 15px;
     overflow-y: auto;
 }
+
 #main {
     flex: 1;
     padding: 20px;
     overflow-y: auto;
     position: relative;
-	overflow: hidden;
+    overflow: hidden;
 }
+
 input, button {
     border-radius: 6px;
     border: none;
@@ -36,26 +39,41 @@ input, button {
     margin: 6px 0;
     padding: 8px;
 }
-button { cursor: pointer; }
-.movie-item { padding: 8px; border-bottom: 1px solid #444; cursor: pointer; }
-.movie-item:hover { background: #3a3a3a; }
-.selected { background: #555; }
-.rating button { width: 32px; margin: 2px; }
+
+button {
+    cursor: pointer;
+}
+
+.movie-item {
+    padding: 8px;
+    border-bottom: 1px solid #444;
+    cursor: pointer;
+}
+
+.movie-item:hover {
+    background: #3a3a3a;
+}
+
+.selected {
+    background: #555;
+}
+
+.rating button {
+    width: 32px;
+    margin: 2px;
+}
+
 .profile {
     position: fixed;
     bottom: 20px;
     right: 40px;
-
     background: rgba(40, 40, 40, 0.7);
     padding: 15px 18px;
     border-radius: 12px;
-
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-
     color: #eee;
     border: 1px solid #444;
-
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     z-index: 10;
 }
@@ -63,11 +81,11 @@ button { cursor: pointer; }
 .profile strong {
     display: block;
     margin-bottom: 6px;
-    font-size: 17px;      /* ← размер имени */
+    font-size: 17px;
     font-weight: 600;
     letter-spacing: 0.3px;
 }
-}
+
 .login-container {
     display: flex;
     flex-direction: column;
@@ -75,25 +93,30 @@ button { cursor: pointer; }
     align-items: center;
     height: 100%;
 }
+
 .login-container input,
 .login-container button {
     width: 220px;
     padding: 8px 10px;
     margin: 5px 0;
 }
+
 .add-movie-container {
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
+
 .add-movie-container input,
 .add-movie-container button {
     width: 100%;
     box-sizing: border-box;
 }
+
 .viewed-container {
     margin-top: 20px;
 }
+
 .viewed-toggle {
     background: #3a3a3a;
     padding: 6px 10px;
@@ -102,6 +125,7 @@ button { cursor: pointer; }
     width: 100%;
     text-align: center;
 }
+
 .viewed-list {
     display: none;
     margin-top: 6px;
@@ -114,7 +138,7 @@ button { cursor: pointer; }
     position: relative;
     width: 100%;
     border-radius: 12px;
-    z-index: 2; /* поверх свечения */
+    z-index: 2;
 }
 
 .poster-ambient-bg {
@@ -126,24 +150,26 @@ button { cursor: pointer; }
     object-fit: cover;
     filter: blur(80px) saturate(1.6) brightness(1.15);
     opacity: 0.55;
-    z-index: 0;           /* под всем контентом */
-    pointer-events: none; /* не мешает кликам */
+    z-index: 0;
+    pointer-events: none;
     border-radius: 50%;
-    transform: translateX(200px) scale(1.2); /* свет уходит вправо */
+    transform: translateX(200px) scale(1.2);
 }
 
 .right-content {
     position: relative;
-    z-index: 3; /* поверх свечения */
+    z-index: 3;
 }
+
 .movie-text-bg {
-    background: rgba(40, 40, 40, 0.7); /* тёмный полупрозрачный фон */
+    background: rgba(40, 40, 40, 0.7);
     padding: 15px;
     border-radius: 12px;
     margin-top: 10px;
-    backdrop-filter: blur(8px); /* размывает то, что за блоком */
+    backdrop-filter: blur(8px);
     color: #eee;
 }
+
 .tabs {
     display: flex;
     margin-bottom: 10px;
@@ -166,6 +192,7 @@ button { cursor: pointer; }
     border: 1px solid #444;
     border-bottom: none;
 }
+
 /* ===== РУЛЕТКА ===== */
 .roulette-overlay {
     position: fixed;
@@ -181,20 +208,10 @@ button { cursor: pointer; }
     display: none;
 }
 
-.roulette-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.85); /* затемнение */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 99999;
-}
-
 #rouletteCanvas {
     width: 750px;
     height: 750px;
-    border-radius: 20px; /* можно оставить, или убрать */
+    border-radius: 20px;
     box-shadow: 0 0 60px rgba(0,0,0,0.8);
 }
 
@@ -202,12 +219,11 @@ button { cursor: pointer; }
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -380px); /* стрелка чуть сверху центра */
+    transform: translate(-50%, -380px);
     font-size: 48px;
     color: #ffcc00;
     z-index: 2;
 }
-
 </style>
 
 <script type="module">
@@ -229,13 +245,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-
 let selectedMovieId = null;
 let state = {
     user: null,
     movies: [],
     viewedOpen: false,
-    tab: "normal" // normal | horror
+    tab: "normal"
 };
 
 const sidebar = document.getElementById("sidebar");
@@ -259,10 +274,7 @@ async function fetchMovie(title) {
     const data = await res.json();
     if (!data.results || !data.results.length) return null;
 
-    // ищем точное совпадение по названию
     let movie = data.results.find(m => m.title.toLowerCase() === title.toLowerCase());
-
-    // если точного совпадения нет — берём первый
     if (!movie) movie = data.results[0];
 
     const genreNames = movie.genre_ids.map(id => genresMap[id]).join(", ");
@@ -286,76 +298,60 @@ async function loadMovies() {
 
 function renderSidebar() {
     sidebar.innerHTML = "<h2></h2>";
-	const tabs = document.createElement("div");
-tabs.className = "tabs";
 
-const normalTab = document.createElement("div");
-normalTab.className = "tab" + (state.tab === "normal" ? " active" : "");
-normalTab.textContent = "Обычные";
+    const tabs = document.createElement("div");
+    tabs.className = "tabs";
 
-normalTab.onclick = () => {
-    state.tab = "normal";
-    render();
-};
+    const normalTab = document.createElement("div");
+    normalTab.className = "tab" + (state.tab === "normal" ? " active" : "");
+    normalTab.textContent = "Обычные";
+    normalTab.onclick = () => { state.tab = "normal"; render(); };
 
-const horrorTab = document.createElement("div");
-horrorTab.className = "tab" + (state.tab === "horror" ? " active" : "");
-horrorTab.textContent = "Ужастики";
+    const horrorTab = document.createElement("div");
+    horrorTab.className = "tab" + (state.tab === "horror" ? " active" : "");
+    horrorTab.textContent = "Ужастики";
+    horrorTab.onclick = () => { state.tab = "horror"; render(); };
 
-horrorTab.onclick = () => {
-    state.tab = "horror";
-    render();
-};
+    tabs.appendChild(normalTab);
+    tabs.appendChild(horrorTab);
+    sidebar.appendChild(tabs);
 
-tabs.appendChild(normalTab);
-tabs.appendChild(horrorTab);
-sidebar.appendChild(tabs);
+    const rouletteBtn = document.createElement("button");
+    rouletteBtn.textContent = "🙈🤙🍌";
+    rouletteBtn.style.width = "100%";
+    rouletteBtn.style.margin = "10px 0";
+    rouletteBtn.style.fontSize = "16px";
 
-const rouletteBtn = document.createElement("button");
-rouletteBtn.textContent = "🙈🤙🍌";
-rouletteBtn.style.width = "100%";
-rouletteBtn.style.margin = "10px 0";
-rouletteBtn.style.fontSize = "16px";
+    rouletteBtn.onclick = () => {
+        overlay.classList.remove("hidden");
+        angle = 0;
+        speed = 0;
+        spinning = false;
 
-rouletteBtn.onclick = () => {
-    // Открываем оверлей
-    overlay.classList.remove("hidden");
+        rouletteMovies = state.movies.filter(m => {
+            if (m.viewed) return false;
+            const isHorror = m.genres?.toLowerCase().includes("ужасы");
+            return state.tab === "horror" ? isHorror : !isHorror;
+        });
+        drawRoulette();
+    };
 
-    // Сбрасываем угол и скорость
-    angle = 0;
-    speed = 0;
-    spinning = false;
+    sidebar.appendChild(rouletteBtn);
 
-    // Отрисовываем текущее состояние колеса (статично)
-    rouletteMovies = state.movies.filter(m => {
-        if (m.viewed) return false;
-        const isHorror = m.genres?.toLowerCase().includes("ужасы");
-        return state.tab === "horror" ? isHorror : !isHorror;
-    });
-    drawRoulette();
-};
-
-sidebar.appendChild(rouletteBtn);
-
-state.movies
-    .filter(m => {
-        if (m.viewed) return false;
-
-        const isHorror = m.genres?.toLowerCase().includes("ужасы");
-
-        return state.tab === "horror"
-            ? isHorror
-            : !isHorror;
-    })
-    .sort((a,b)=>b.createdAt - a.createdAt)
-    .forEach(m => {
-        const d = document.createElement("div");
-        d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
-        d.innerHTML = `<strong>${m.title}</strong> <span style="float:right; color:#ccc;">⭐ ${m.tmdbRating}</span>`;
-        d.onclick = () => { selectedMovieId = m.id; render(); };
-        sidebar.appendChild(d);
-    });
-
+    state.movies
+        .filter(m => {
+            if (m.viewed) return false;
+            const isHorror = m.genres?.toLowerCase().includes("ужасы");
+            return state.tab === "horror" ? isHorror : !isHorror;
+        })
+        .sort((a,b)=>b.createdAt - a.createdAt)
+        .forEach(m => {
+            const d = document.createElement("div");
+            d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
+            d.innerHTML = `<strong>${m.title}</strong> <span style="float:right; color:#ccc;">⭐ ${m.tmdbRating}</span>`;
+            d.onclick = () => { selectedMovieId = m.id; render(); };
+            sidebar.appendChild(d);
+        });
 
     const container = document.createElement("div");
     container.className = "add-movie-container";
@@ -422,16 +418,16 @@ state.movies
         render();
     };
 
-state.movies
-    .filter(m => m.viewed)
-    .sort((a,b) => (b.viewedAt || 0) - (a.viewedAt || 0)) // новые сверху
-    .forEach(m => {
-        const d = document.createElement("div");
-        d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
-        d.innerHTML = `<strong>${m.title}</strong> <span style="float:right; color:#ccc;">⭐ ${m.tmdbRating}</span>`;
-        d.onclick = () => { selectedMovieId = m.id; render(); };
-        viewedList.appendChild(d);
-    });
+    state.movies
+        .filter(m => m.viewed)
+        .sort((a,b) => (b.viewedAt || 0) - (a.viewedAt || 0))
+        .forEach(m => {
+            const d = document.createElement("div");
+            d.className = "movie-item" + (m.id===selectedMovieId?" selected":"");
+            d.innerHTML = `<strong>${m.title}</strong> <span style="float:right; color:#ccc;">⭐ ${m.tmdbRating}</span>`;
+            d.onclick = () => { selectedMovieId = m.id; render(); };
+            viewedList.appendChild(d);
+        });
 
     viewedContainer.appendChild(toggleBtn);
     viewedContainer.appendChild(viewedList);
@@ -441,7 +437,6 @@ state.movies
 function renderMain() {
     main.innerHTML = "";
 
-    // Если пользователь не вошёл
     if (!state.user) {
         main.innerHTML = `
             <div class="login-container">
@@ -459,7 +454,6 @@ function renderMain() {
         return;
     }
 
-    // Профиль пользователя
     const userMovies = state.movies.filter(m => m.creator === state.user);
     main.innerHTML += `
         <div class="profile">
@@ -472,7 +466,6 @@ function renderMain() {
 
     const m = state.movies.find(x => x.id === selectedMovieId);
 
-    // Основной блок с постером
     main.innerHTML += `
     <h2>${m.title} (${m.year})</h2>
     <div style="position: relative; display: flex; gap: 20px; margin-bottom: 20px;">
@@ -493,32 +486,24 @@ function renderMain() {
                 filter: blur(80px) saturate(1.6) brightness(1.15);
                 opacity:0.55;
             ">
-                <img src="${m.poster}" style="
-                    width:100%; height:100%;
-                    object-fit:cover;
-                ">
+                <img src="${m.poster}" style="width:100%; height:100%; object-fit:cover;">
             </div>
         ` : ""}
     </div>
     `;
 
-	// Кнопка "Просмотрено" — только для Кола
     if (state.user === "Кола") {
-    const viewedBtn = document.createElement("button");
-    viewedBtn.textContent = m.viewed ? "👁 Просмотрено" : "👁 Отметить просмотрено";
-    viewedBtn.style.display = "block";
-    viewedBtn.style.marginTop = "10px";
-    viewedBtn.onclick = async () => {
-        await updateDoc(doc(db, "movies", m.id), { 
-            viewed: true,
-            viewedAt: Date.now()
-        });
-        await loadMovies();
-    };
-    main.appendChild(viewedBtn);
-}
+        const viewedBtn = document.createElement("button");
+        viewedBtn.textContent = m.viewed ? "👁 Просмотрено" : "👁 Отметить просмотрено";
+        viewedBtn.style.display = "block";
+        viewedBtn.style.marginTop = "10px";
+        viewedBtn.onclick = async () => {
+            await updateDoc(doc(db, "movies", m.id), { viewed: true, viewedAt: Date.now() });
+            await loadMovies();
+        };
+        main.appendChild(viewedBtn);
+    }
 
-    // Текст под кнопкой: TMDb, жанры, описание
     const textDiv = document.createElement("div");
     textDiv.className = "movie-text-bg";
     textDiv.style.marginTop = "10px"; 
@@ -530,7 +515,6 @@ function renderMain() {
     `;
     document.getElementById("viewedBtnContainer").appendChild(textDiv);
 
-    // Кнопка удаления для пользователя "Кола"
     if (state.user === "Кола") {
         const delBtn = document.createElement("button");
         delBtn.textContent = "🗑 Удалить фильм";
@@ -546,7 +530,6 @@ function renderMain() {
         main.appendChild(delBtn);
     }
 
-    // === Всплывающий трейлер по клику на постер ===
     if (m.poster && m.trailer) {
         const posterImg = document.querySelector(".poster-main");
         posterImg.style.cursor = "pointer";
@@ -588,7 +571,6 @@ function renderMain() {
             closeBtn.style.width = "40px";
             closeBtn.style.height = "40px";
             closeBtn.style.cursor = "pointer";
-
             closeBtn.onclick = () => document.body.removeChild(overlay);
 
             trailerContainer.appendChild(iframe);
@@ -599,8 +581,7 @@ function renderMain() {
     }
 }
 
-
-
+// ===== Рулетка =====
 const overlay = document.getElementById("rouletteOverlay");
 const canvas = document.getElementById("rouletteCanvas");
 const ctx = canvas.getContext("2d");
@@ -608,25 +589,18 @@ const ctx = canvas.getContext("2d");
 let angle = 0;
 let speed = 0;
 let spinning = false;
-
-const rouletteColors = [
-    "#f1b71c", // жёлтый
-    "#0c9e2f", // зелёный
-    "#3e72e9", // синий
-    "#d72135"  // красный
-];
+const rouletteColors = ["#f1b71c","#0c9e2f","#3e72e9","#d72135"];
+let previousIndex = -1;
+let rouletteMovies = [];
 
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
         overlay.classList.add("hidden");
-        spinning = false; // останавливаем анимацию, если колесо крутится
+        spinning = false;
     }
 });
 
-let rouletteMovies = [];  
-
 function startRoulette() {
-    // Если массив пуст — заполняем его только один раз
     if (rouletteMovies.length === 0) {
         rouletteMovies = state.movies.filter(m => {
             if (m.viewed) return false;
@@ -643,33 +617,22 @@ function startRoulette() {
     angle = 0;
     speed = Math.random() * 0.3 + 0.35;
     spinning = true;
-
     overlay.classList.remove("hidden");
     requestAnimationFrame(spin);
-	previousIndex = -1;
+    previousIndex = -1;
 }
-
-const tickSound = new Audio('tick.mp3'); // файл нужно положить рядом с html
-tickSound.volume = 0.3; // громкость
-
-let previousIndex = -1;
 
 function spin() {
     if (!spinning) return;
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const cx = 375;
-    const cy = 375;
-    const radius = 350;
+    const cx = 375, cy = 375, radius = 350;
     const slice = (Math.PI * 2) / rouletteMovies.length;
 
-    // индекс секции под стрелкой
-    const pointerAngle = (-Math.PI / 2 - angle) % (Math.PI * 2);
-    const normalized = (pointerAngle + 2 * Math.PI) % (2 * Math.PI);
+    const pointerAngle = (-Math.PI/2 - angle) % (Math.PI*2);
+    const normalized = (pointerAngle + 2*Math.PI) % (2*Math.PI);
     const currentIndex = Math.floor(normalized / slice);
 
-    // если секция новая – создаём новый объект аудио
     if (currentIndex !== previousIndex) {
         const tick = new Audio('tick.mp3');
         tick.volume = 0.3;
@@ -677,14 +640,12 @@ function spin() {
         previousIndex = currentIndex;
     }
 
-    // рисуем секции
-    rouletteMovies.forEach((m, i) => {
-        const start = angle + i * slice;
+    rouletteMovies.forEach((m,i)=>{
+        const start = angle + i*slice;
         const end = start + slice;
-
         ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.arc(cx, cy, radius, start, end);
+        ctx.moveTo(cx,cy);
+        ctx.arc(cx,cy,radius,start,end);
         ctx.fillStyle = rouletteColors[i % rouletteColors.length];
         ctx.fill();
         ctx.strokeStyle = "#ffffff55";
@@ -692,38 +653,32 @@ function spin() {
         ctx.stroke();
 
         ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(start + slice / 2);
+        ctx.translate(cx,cy);
+        ctx.rotate(start + slice/2);
         ctx.textAlign = "right";
         ctx.fillStyle = "#fff";
         ctx.font = "bold 23px Arial";
         ctx.shadowColor = "rgba(0,0,0,0.6)";
         ctx.shadowBlur = 4;
-        ctx.fillText(m.title.slice(0, 22), radius - 14, 5);
+        ctx.fillText(m.title.slice(0,22), radius-14,5);
         ctx.shadowBlur = 0;
         ctx.restore();
     });
 
-    // центр колеса
     ctx.beginPath();
-    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+    ctx.arc(cx,cy,10,0,Math.PI*2);
     ctx.fillStyle = "#ffd166";
     ctx.fill();
 
-    // замедление
     angle += speed;
     speed *= 0.992;
 
     if (speed < 0.0002) {
         spinning = false;
-
-        const pointerAngleFinal = (-Math.PI / 2 - angle) % (2 * Math.PI);
-        const normalizedFinal = (pointerAngleFinal + 2 * Math.PI) % (2 * Math.PI);
+        const pointerAngleFinal = (-Math.PI/2 - angle) % (2*Math.PI);
+        const normalizedFinal = (pointerAngleFinal + 2*Math.PI) % (2*Math.PI);
         const finalIndex = Math.floor(normalizedFinal / slice);
-
-        const selectedMovie = rouletteMovies[finalIndex];
-
-        rouletteMovies.splice(finalIndex, 1);
+        rouletteMovies.splice(finalIndex,1);
         angle = 0;
         drawRoulette();
         return;
@@ -733,20 +688,16 @@ function spin() {
 }
 
 function drawRoulette() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const cx = 375, cy = 375, radius = 350;
+    const slice = (Math.PI*2)/rouletteMovies.length;
 
-    const cx = 375;
-    const cy = 375;
-    const radius = 350;
-    const slice = (Math.PI * 2) / rouletteMovies.length;
-
-    rouletteMovies.forEach((m, i) => {
-        const start = i * slice;
+    rouletteMovies.forEach((m,i)=>{
+        const start = i*slice;
         const end = start + slice;
-
         ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.arc(cx, cy, radius, start, end);
+        ctx.moveTo(cx,cy);
+        ctx.arc(cx,cy,radius,start,end);
         ctx.fillStyle = rouletteColors[i % rouletteColors.length];
         ctx.fill();
         ctx.strokeStyle = "#ffffff55";
@@ -754,30 +705,26 @@ function drawRoulette() {
         ctx.stroke();
 
         ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(start + slice / 2);
+        ctx.translate(cx,cy);
+        ctx.rotate(start + slice/2);
         ctx.textAlign = "right";
         ctx.fillStyle = "#fff";
         ctx.font = "bold 23px Arial";
         ctx.shadowColor = "rgba(0,0,0,0.6)";
         ctx.shadowBlur = 4;
-        ctx.fillText(m.title.slice(0, 22), radius - 14, 5);
+        ctx.fillText(m.title.slice(0,22), radius-14,5);
         ctx.shadowBlur = 0;
         ctx.restore();
     });
 
-    // Центр
     ctx.beginPath();
-    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+    ctx.arc(cx,cy,10,0,Math.PI*2);
     ctx.fillStyle = "#ffd166";
     ctx.fill();
 }
 
 canvas.style.cursor = "pointer";
-
-canvas.addEventListener("click", () => {
-    if (!spinning) startRoulette(); // запускаем вращение, если не крутится
-});
+canvas.addEventListener("click", ()=>{ if(!spinning) startRoulette(); });
 
 function render() {
     renderSidebar();
@@ -793,7 +740,6 @@ loadMovies();
 <div id="rouletteOverlay" class="roulette-overlay hidden">
     <div class="roulette-pointer">▼</div>
     <canvas id="rouletteCanvas" width="750" height="750"></canvas>
-</div>
 </div>
 </body>
 </html>
