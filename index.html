@@ -674,9 +674,16 @@ function spin() {
     const currentIndex = Math.floor(normalized / slice);
 
     if (currentIndex !== previousIndex) {
-        const tick = new Audio('tick.mp3');
-        tick.volume = 0.3;
-        tick.play();
+// speed примерно от 0 (медленно) до 0.5 (быстро)
+const maxVolume = 0.3;       // максимальная громкость
+const minVolume = 0.03;      // минимальная громкость на большой скорости
+const normalizedVolume = maxVolume - speed * (maxVolume - minVolume);
+
+const tick = new Audio('tick.mp3');
+tick.volume = Math.max(normalizedVolume, minVolume); // чтобы громкость не ушла в 0
+tick.play();
+
+
         previousIndex = currentIndex;
     }
 
