@@ -181,42 +181,31 @@ button { cursor: pointer; }
     display: none;
 }
 
-.roulette-modal {
-    position: relative;
-    width: 800px;   /* увеличиваем окно */
-    height: 800px;
-    background: #1e1e1e;
-    border-radius: 20px;
-    box-shadow: 0 0 60px rgba(0,0,0,0.8);
+.roulette-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85); /* затемнение */
     display: flex;
     align-items: center;
     justify-content: center;
+    z-index: 99999;
 }
 
 #rouletteCanvas {
     width: 750px;
     height: 750px;
+    border-radius: 20px; /* можно оставить, или убрать */
+    box-shadow: 0 0 60px rgba(0,0,0,0.8);
 }
 
 .roulette-pointer {
     position: absolute;
-    top: 20px;         /* чуть ниже, чтобы центр совпадал с колесом */
-    font-size: 48px;   /* увеличиваем стрелку */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -380px); /* стрелка чуть сверху центра */
+    font-size: 48px;
     color: #ffcc00;
     z-index: 2;
-}
-
-#rouletteClose {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    width: 48px;
-    height: 48px;
-    font-size: 24px;
-    background: #a33;
-    color: #fff;
-    border-radius: 50%;
-    cursor: pointer;
 }
 
 </style>
@@ -328,7 +317,23 @@ rouletteBtn.style.width = "100%";
 rouletteBtn.style.margin = "10px 0";
 rouletteBtn.style.fontSize = "16px";
 
-rouletteBtn.onclick = () => startRoulette();
+rouletteBtn.onclick = () => {
+    // Открываем оверлей
+    overlay.classList.remove("hidden");
+
+    // Сбрасываем угол и скорость
+    angle = 0;
+    speed = 0;
+    spinning = false;
+
+    // Отрисовываем текущее состояние колеса (статично)
+    rouletteMovies = state.movies.filter(m => {
+        if (m.viewed) return false;
+        const isHorror = m.genres?.toLowerCase().includes("ужасы");
+        return state.tab === "horror" ? isHorror : !isHorror;
+    });
+    drawRoulette();
+};
 
 sidebar.appendChild(rouletteBtn);
 
@@ -599,7 +604,6 @@ function renderMain() {
 const overlay = document.getElementById("rouletteOverlay");
 const canvas = document.getElementById("rouletteCanvas");
 const ctx = canvas.getContext("2d");
-const closeBtn = document.getElementById("rouletteClose");
 
 let angle = 0;
 let speed = 0;
@@ -612,9 +616,12 @@ const rouletteColors = [
     "#d72135"  // красный
 ];
 
-
-
-closeBtn.onclick = () => overlay.classList.add("hidden");
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+        overlay.classList.add("hidden");
+        spinning = false; // останавливаем анимацию, если колесо крутится
+    }
+});
 
 let rouletteMovies = [];  
 
@@ -639,7 +646,13 @@ function startRoulette() {
 
     overlay.classList.remove("hidden");
     requestAnimationFrame(spin);
+	previousIndex = -1;
 }
+
+const tickSound = new Audio('tick.mp3'); // файл нужно положить рядом с html
+tickSound.volume = 0.3; // громкость
+
+let previousIndex = -1;
 
 function spin() {
     if (!spinning) return;
@@ -651,6 +664,20 @@ function spin() {
     const radius = 350;
     const slice = (Math.PI * 2) / rouletteMovies.length;
 
+    // индекс секции под стрелкой
+    const pointerAngle = (-Math.PI / 2 - angle) % (Math.PI * 2);
+    const normalized = (pointerAngle + 2 * Math.PI) % (2 * Math.PI);
+    const currentIndex = Math.floor(normalized / slice);
+
+    // если секция новая – создаём новый объект аудио
+    if (currentIndex !== previousIndex) {
+        const tick = new Audio('tick.mp3');
+        tick.volume = 0.3;
+        tick.play();
+        previousIndex = currentIndex;
+    }
+
+    // рисуем секции
     rouletteMovies.forEach((m, i) => {
         const start = angle + i * slice;
         const end = start + slice;
@@ -677,31 +704,26 @@ function spin() {
         ctx.restore();
     });
 
-    // Обод колеса
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = "#ffd166";
-    ctx.lineWidth = 6;
-    ctx.stroke();
-
-    // Центр
+    // центр колеса
     ctx.beginPath();
     ctx.arc(cx, cy, 10, 0, Math.PI * 2);
     ctx.fillStyle = "#ffd166";
     ctx.fill();
 
-    // Плавное замедление
+    // замедление
     angle += speed;
-    speed *= 0.992; // меньшее замедление (0.995 вместо 0.985)
-    if (speed < 0.0002) { // медленный порог
+    speed *= 0.992;
+
+    if (speed < 0.0002) {
         spinning = false;
 
-        const pointerAngle = (-Math.PI/2 - angle) % (Math.PI*2);
-        const normalized = (pointerAngle + 2*Math.PI) % (2*Math.PI);
-        const slice = (2*Math.PI) / rouletteMovies.length;
-        const index = Math.floor(normalized / slice);
-        rouletteMovies.splice(index, 1);
+        const pointerAngleFinal = (-Math.PI / 2 - angle) % (2 * Math.PI);
+        const normalizedFinal = (pointerAngleFinal + 2 * Math.PI) % (2 * Math.PI);
+        const finalIndex = Math.floor(normalizedFinal / slice);
 
+        const selectedMovie = rouletteMovies[finalIndex];
+
+        rouletteMovies.splice(finalIndex, 1);
         angle = 0;
         drawRoulette();
         return;
@@ -709,7 +731,6 @@ function spin() {
 
     requestAnimationFrame(spin);
 }
-
 
 function drawRoulette() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -745,13 +766,6 @@ function drawRoulette() {
         ctx.restore();
     });
 
-    // Обод колеса
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = "#ffd166";
-    ctx.lineWidth = 6;
-    ctx.stroke();
-
     // Центр
     ctx.beginPath();
     ctx.arc(cx, cy, 10, 0, Math.PI * 2);
@@ -759,20 +773,11 @@ function drawRoulette() {
     ctx.fill();
 }
 
-const restartBtn = document.getElementById("rouletteRestart");
+canvas.style.cursor = "pointer";
 
-restartBtn.onclick = () => {
-    if (!rouletteMovies.length) {
-        alert("Фильмы закончились 😢");
-        return;
-    }
-
-    angle = 0;
-    speed = Math.random() * 0.7 + 0.8;
-    spinning = true;
-    requestAnimationFrame(spin);
-};
-
+canvas.addEventListener("click", () => {
+    if (!spinning) startRoulette(); // запускаем вращение, если не крутится
+});
 
 function render() {
     renderSidebar();
@@ -786,24 +791,9 @@ loadMovies();
 <div id="sidebar"></div>
 <div id="main"></div>
 <div id="rouletteOverlay" class="roulette-overlay hidden">
-    <div class="roulette-modal">
-        <div class="roulette-pointer">▼</div>
-        <canvas id="rouletteCanvas" width="750" height="750"></canvas>
-        <button id="rouletteClose">✖</button>
-        <button id="rouletteRestart" style="
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px 20px;
-            background: #06d6a0;
-            border: none;
-            border-radius: 12px;
-            color: #1e1e1e;
-            cursor: pointer;
-            font-weight: bold;
-        ">Запустить снова</button>
-    </div>
+    <div class="roulette-pointer">▼</div>
+    <canvas id="rouletteCanvas" width="750" height="750"></canvas>
+</div>
 </div>
 </body>
 </html>
