@@ -297,11 +297,16 @@ async function loadGenres() {
 }
 await loadGenres();
 
-async function fetchMovie(title) {
-    const res = await fetch(
-        `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&language=ru-RU`
-    );
+async function fetchMovie(title, year = null) {
+    const url = new URL("https://api.themoviedb.org/3/search/movie");
+    url.searchParams.set("api_key", TMDB_API_KEY);
+    url.searchParams.set("query", title);
+    url.searchParams.set("language", "ru-RU");
+    if (year) url.searchParams.set("year", year);  // добавляем фильтр по году
+
+    const res = await fetch(url);
     const data = await res.json();
+
     if (!data.results || !data.results.length) return null;
 
     let movie = data.results.find(m => m.title.toLowerCase() === title.toLowerCase());
@@ -310,6 +315,7 @@ async function fetchMovie(title) {
     const genreNames = movie.genre_ids.map(id => genresMap[id]).join(", ");
     return { ...movie, genreNames, overview: movie.overview || "" };
 }
+
 
 async function fetchTrailer(movieId) {
     const res = await fetch(
@@ -397,7 +403,21 @@ function renderSidebar() {
         b.disabled = true;
         b.textContent = "Поиск...";
 
-        const m = await fetchMovie(i.value.trim());
+     // Берем строку из поля
+const input = i.value.trim();
+
+// Ищем год в конце строки (4 цифры)
+const match = input.match(/(.*)\s(\d{4})$/);
+
+let title = input;  // по умолчанию вся строка — название
+let year = null;
+
+if (match) {
+    title = match[1].trim();          // всё кроме года
+    year = parseInt(match[2]);        // сам год
+}
+
+const m = await fetchMovie(title, year);
         if (!m) {
             b.textContent = "Не найдено";
             setTimeout(()=>{b.textContent="➕ Добавить"; b.disabled=false;},1000);
