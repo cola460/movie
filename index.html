@@ -28,7 +28,6 @@ body {
     padding: 20px;
     overflow-y: auto;
     position: relative;
-    overflow: hidden;
 }
 
 input, button {
@@ -133,7 +132,6 @@ button {
     padding-top: 6px;
 }
 
-/* ======= Свечение постера ======= */
 .poster-main {
     position: relative;
     width: 100%;
@@ -254,6 +252,20 @@ button {
     color: #ffcc00;
     z-index: 2;
 }
+
+.poster-loading {
+    position: relative;
+    background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    min-height: 450px;
+    border-radius: 12px;
+}
+
+@keyframes loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
 </style>
 
 <script type="module">
@@ -261,7 +273,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebas
 import { getFirestore, collection, getDocs, setDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const TMDB_API_KEY = "2ca8d6767ce5b1e65da06ab763f5c6b1";
-const IMG = "https://image.tmdb.org/t/p/w300";
+const TMDB_IMG = "https://image.tmdb.org/t/p/w300";
 
 const firebaseConfig = {
     apiKey: "AIzaSyAankTW1IXlRygRzAFJh2r0LmE6IjJJk50",
@@ -297,12 +309,77 @@ async function loadGenres() {
 }
 await loadGenres();
 
+// Функция конвертации изображения в base64
+async function imageToBase64(url) {
+    if (!url) return null;
+    
+    try {
+        const sources = [
+            url,
+            url.replace('image.tmdb.org', 'tmdb.org'),
+            url.replace('w300', 'original')
+        ];
+        
+        for (const src of sources) {
+            try {
+                const response = await fetch(src, { 
+                    mode: 'cors',
+                    cache: 'force-cache'
+                });
+                
+                if (!response.ok) continue;
+                
+                const blob = await response.blob();
+                
+                if (blob.size > 500 * 1024) {
+                    return await compressImage(blob);
+                }
+                
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            } catch (e) {
+                continue;
+            }
+        }
+    } catch (e) {
+        console.error("Ошибка загрузки изображения:", e);
+        return null;
+    }
+    return null;
+}
+
+// Функция сжатия больших изображений
+async function compressImage(blob) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            const maxWidth = 300;
+            const scale = maxWidth / img.width;
+            canvas.width = maxWidth;
+            canvas.height = img.height * scale;
+            
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            const base64 = canvas.toDataURL('image/jpeg', 0.8);
+            resolve(base64);
+        };
+        img.src = URL.createObjectURL(blob);
+    });
+}
+
 async function fetchMovie(title, year = null) {
     const url = new URL("https://api.themoviedb.org/3/search/movie");
     url.searchParams.set("api_key", TMDB_API_KEY);
     url.searchParams.set("query", title);
     url.searchParams.set("language", "ru-RU");
-    if (year) url.searchParams.set("year", year);  // добавляем фильтр по году
+    if (year) url.searchParams.set("year", year);
 
     const res = await fetch(url);
     const data = await res.json();
@@ -313,9 +390,16 @@ async function fetchMovie(title, year = null) {
     if (!movie) movie = data.results[0];
 
     const genreNames = movie.genre_ids.map(id => genresMap[id]).join(", ");
-    return { ...movie, genreNames, overview: movie.overview || "" };
+    
+    let posterUrl = movie.poster_path ? TMDB_IMG + movie.poster_path : "";
+    
+    return { 
+        ...movie, 
+        poster: posterUrl,
+        genreNames, 
+        overview: movie.overview || "" 
+    };
 }
-
 
 async function fetchTrailer(movieId) {
     const res = await fetch(
@@ -327,9 +411,36 @@ async function fetchTrailer(movieId) {
 }
 
 async function loadMovies() {
-    const snapshot = await getDocs(collection(db, "movies"));
-    state.movies = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+        const snapshot = await getDocs(collection(db, "movies"));
+        state.movies = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        localStorage.setItem("movies_backup", JSON.stringify(state.movies));
+    } catch (e) {
+        console.log("Firebase ошибка, грузим из localStorage:", e);
+        const saved = localStorage.getItem("movies_backup");
+        state.movies = saved ? JSON.parse(saved) : [];
+    }
     render();
+}
+
+// Функция для обновления старых фильмов
+async function migrateOldMovies() {
+    const oldMovies = state.movies.filter(m => m.poster && !m.poster.startsWith('data:'));
+    
+    for (const movie of oldMovies) {
+        try {
+            console.log(`Обновляем постер для: ${movie.title}`);
+            const base64 = await imageToBase64(movie.poster);
+            if (base64) {
+                await updateDoc(doc(db, "movies", movie.id), {
+                    poster: base64
+                });
+            }
+        } catch (e) {
+            console.error(`Ошибка обновления ${movie.title}:`, e);
+        }
+    }
+    await loadMovies();
 }
 
 function renderSidebar() {
@@ -374,6 +485,25 @@ function renderSidebar() {
 
     sidebar.appendChild(rouletteBtn);
 
+    if (state.user === "Кола") {
+        const migrateBtn = document.createElement("button");
+        migrateBtn.textContent = "🔄 Обновить постеры старых фильмов";
+        migrateBtn.style.width = "100%";
+        migrateBtn.style.margin = "10px 0";
+        migrateBtn.style.background = "#4a4a4a";
+        migrateBtn.onclick = async () => {
+            migrateBtn.disabled = true;
+            migrateBtn.textContent = "Обновление...";
+            await migrateOldMovies();
+            migrateBtn.textContent = "Готово!";
+            setTimeout(() => {
+                migrateBtn.textContent = "🔄 Обновить постеры старых фильмов";
+                migrateBtn.disabled = false;
+            }, 2000);
+        };
+        sidebar.appendChild(migrateBtn);
+    }
+
     state.movies
         .filter(m => {
             if (m.viewed) return false;
@@ -403,40 +533,47 @@ function renderSidebar() {
         b.disabled = true;
         b.textContent = "Поиск...";
 
-     // Берем строку из поля
-const input = i.value.trim();
+        const input = i.value.trim();
+        const match = input.match(/(.*)\s(\d{4})$/);
+        let title = input;
+        let year = null;
 
-// Ищем год в конце строки (4 цифры)
-const match = input.match(/(.*)\s(\d{4})$/);
+        if (match) {
+            title = match[1].trim();
+            year = parseInt(match[2]);
+        }
 
-let title = input;  // по умолчанию вся строка — название
-let year = null;
-
-if (match) {
-    title = match[1].trim();          // всё кроме года
-    year = parseInt(match[2]);        // сам год
-}
-
-const m = await fetchMovie(title, year);
+        const m = await fetchMovie(title, year);
         if (!m) {
             b.textContent = "Не найдено";
-            setTimeout(()=>{b.textContent="➕ Добавить"; b.disabled=false;},1000);
+            setTimeout(() => {
+                b.textContent = "➕ Добавить";
+                b.disabled = false;
+            }, 1000);
             return;
         }
 
+        b.textContent = "Загрузка постера...";
+        
+        let posterBase64 = "";
+        if (m.poster) {
+            posterBase64 = await imageToBase64(m.poster) || "";
+        }
+
+        b.textContent = "Загрузка трейлера...";
         const trailer = await fetchTrailer(m.id);
 
         const newMovie = {
             title: m.title,
-            poster: m.poster_path ? IMG + m.poster_path : "",
+            poster: posterBase64,
             tmdbRating: m.vote_average?.toFixed(1) || "—",
-            year: m.release_date?.slice(0,4) || "",
-            overview: m.overview,
-            trailer: trailer,
+            year: m.release_date?.slice(0, 4) || "",
+            overview: m.overview || "",
+            trailer: trailer || "",
             userRatings: {},
             createdAt: Date.now(),
             creator: state.user,
-            genres: m.genreNames,
+            genres: m.genreNames || "",
             viewed: false
         };
 
@@ -516,53 +653,45 @@ function renderMain() {
 
     const m = state.movies.find(x => x.id === selectedMovieId);
 
-// Основной блок с постером
-main.innerHTML += `
-<div style="position: relative; width:300px; z-index:2; display: flex; flex-direction: column; gap: 6px;">
-    <!-- Заголовок сверху, в потоке -->
-    <h2 style="color: #fff; font-size: 24px; margin-top: 10; z-index:10; margin:0 0 15px 0; white-space: nowrap;">
-        ${m.title} (${m.year})
-    </h2>
+    main.innerHTML += `
+    <div style="position: relative; width:300px; z-index:2; display: flex; flex-direction: column; gap: 6px;">
+        <h2 style="color: #fff; font-size: 24px; margin:0 0 15px 0;">
+            ${m.title} (${m.year})
+        </h2>
 
-    <!-- Постер -->
-    ${m.poster ? `<img class="poster-main" src="${m.poster}" style="border-radius:12px; width:100%; z-index:2;">` : ""}
+        ${m.poster ? `
+            <img class="poster-main" 
+                 src="${m.poster}" 
+                 alt="${m.title}"
+                 style="border-radius:12px; width:100%; z-index:2; background: #333; cursor: ${m.trailer ? 'pointer' : 'default'};"
+                 loading="lazy">
+        ` : `
+            <div style="width:100%; height:450px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                       border-radius:12px; display: flex; align-items: center; justify-content: center;">
+                <span style="color: white; font-size: 24px; text-align: center; padding: 20px;">
+                    ${m.title}
+                </span>
+            </div>
+        `}
 
-    <!-- Контейнер для текста под кнопкой просмотрено -->
-    <div id="viewedBtnContainer" style="margin-top:10px; z-index:10;"></div>
-
-    <!-- Свечение постера -->
-    ${m.poster ? `
-        <div style="
-            position:absolute;
-            top:50%; left:50%;
-            width:1900px; height:900px;
-            transform: translate(-50%, -50%) scale(1.2);
-            z-index:0;
-            pointer-events:none;
-            border-radius:50%;
-            overflow:hidden;
-            filter: blur(80px) saturate(1.6) brightness(1.15);
-            opacity:0.55;
-        ">
-            <img src="${m.poster}" style="width:100%; height:100%; object-fit:cover;">
-        </div>
-    ` : ""}
-</div>
-
-`;
-
-
-    if (state.user === "Кола") {
-        const viewedBtn = document.createElement("button");
-        viewedBtn.textContent = m.viewed ? "👁 Просмотрено" : "👁 Просмотрено";
-        viewedBtn.style.display = "block";
-        viewedBtn.style.marginTop = "10px";
-        viewedBtn.onclick = async () => {
-            await updateDoc(doc(db, "movies", m.id), { viewed: true, viewedAt: Date.now() });
-            await loadMovies();
-        };
-        main.appendChild(viewedBtn);
-    }
+        ${m.poster ? `
+            <div style="
+                position:absolute;
+                top:50%; left:50%;
+                width:1900px; height:900px;
+                transform: translate(-50%, -50%) scale(1.2);
+                z-index:0;
+                pointer-events:none;
+                border-radius:50%;
+                overflow:hidden;
+                filter: blur(80px) saturate(1.6) brightness(1.15);
+                opacity:0.55;
+            ">
+                <img src="${m.poster}" style="width:100%; height:100%; object-fit:cover;">
+            </div>
+        ` : ""}
+    </div>
+    `;
 
     const textDiv = document.createElement("div");
     textDiv.className = "movie-text-bg";
@@ -570,12 +699,25 @@ main.innerHTML += `
     textDiv.style.width = "500px";     
     textDiv.innerHTML = `
         <p>TMDb: ${m.tmdbRating}</p>
-        <p>Жанры: ${m.genres}</p>
+        <p>Жанры: ${m.genres || "не указаны"}</p>
         ${m.overview ? `<p><strong>Описание:</strong><br>${m.overview}</p>` : ""}
     `;
-    document.getElementById("viewedBtnContainer").appendChild(textDiv);
+    main.appendChild(textDiv);
 
     if (state.user === "Кола") {
+        const viewedBtn = document.createElement("button");
+        viewedBtn.textContent = m.viewed ? "✅ Просмотрено" : "👁 Отметить просмотренным";
+        viewedBtn.style.display = "block";
+        viewedBtn.style.marginTop = "10px";
+        viewedBtn.style.background = m.viewed ? "#2a5" : "#3a3a3a";
+        viewedBtn.onclick = async () => {
+            if (!m.viewed) {
+                await updateDoc(doc(db, "movies", m.id), { viewed: true, viewedAt: Date.now() });
+                await loadMovies();
+            }
+        };
+        main.appendChild(viewedBtn);
+
         const delBtn = document.createElement("button");
         delBtn.textContent = "🗑 Удалить фильм";
         delBtn.style.background = "#a33";
@@ -592,52 +734,53 @@ main.innerHTML += `
 
     if (m.poster && m.trailer) {
         const posterImg = document.querySelector(".poster-main");
-        posterImg.style.cursor = "pointer";
+        if (posterImg) {
+            posterImg.style.cursor = "pointer";
+            posterImg.onclick = () => {
+                const overlay = document.createElement("div");
+                overlay.style.position = "fixed";
+                overlay.style.top = "0";
+                overlay.style.left = "0";
+                overlay.style.width = "100vw";
+                overlay.style.height = "100vh";
+                overlay.style.background = "rgba(0,0,0,0.8)";
+                overlay.style.display = "flex";
+                overlay.style.justifyContent = "center";
+                overlay.style.alignItems = "center";
+                overlay.style.zIndex = "9999";
 
-        posterImg.onclick = () => {
-            const overlay = document.createElement("div");
-            overlay.style.position = "fixed";
-            overlay.style.top = "0";
-            overlay.style.left = "0";
-            overlay.style.width = "100vw";
-            overlay.style.height = "100vh";
-            overlay.style.background = "rgba(0,0,0,0.8)";
-            overlay.style.display = "flex";
-            overlay.style.justifyContent = "center";
-            overlay.style.alignItems = "center";
-            overlay.style.zIndex = "9999";
+                const trailerContainer = document.createElement("div");
+                trailerContainer.style.position = "relative";
 
-            const trailerContainer = document.createElement("div");
-            trailerContainer.style.position = "relative";
+                const iframe = document.createElement("iframe");
+                iframe.src = m.trailer;
+                iframe.width = "888";
+                iframe.height = "500";
+                iframe.frameBorder = "0";
+                iframe.allowFullscreen = true;
+                iframe.style.borderRadius = "12px";
 
-            const iframe = document.createElement("iframe");
-            iframe.src = m.trailer;
-            iframe.width = "888";
-            iframe.height = "500";
-            iframe.frameBorder = "0";
-            iframe.allowFullscreen = true;
-            iframe.style.borderRadius = "12px";
+                const closeBtn = document.createElement("button");
+                closeBtn.textContent = "✖";
+                closeBtn.style.position = "absolute";
+                closeBtn.style.top = "-30px";
+                closeBtn.style.right = "-30px";
+                closeBtn.style.fontSize = "24px";
+                closeBtn.style.background = "#a33";
+                closeBtn.style.color = "#fff";
+                closeBtn.style.border = "none";
+                closeBtn.style.borderRadius = "50%";
+                closeBtn.style.width = "40px";
+                closeBtn.style.height = "40px";
+                closeBtn.style.cursor = "pointer";
+                closeBtn.onclick = () => document.body.removeChild(overlay);
 
-            const closeBtn = document.createElement("button");
-            closeBtn.textContent = "✖";
-            closeBtn.style.position = "absolute";
-            closeBtn.style.top = "-30px";
-            closeBtn.style.right = "-30px";
-            closeBtn.style.fontSize = "24px";
-            closeBtn.style.background = "#a33";
-            closeBtn.style.color = "#fff";
-            closeBtn.style.border = "none";
-            closeBtn.style.borderRadius = "50%";
-            closeBtn.style.width = "40px";
-            closeBtn.style.height = "40px";
-            closeBtn.style.cursor = "pointer";
-            closeBtn.onclick = () => document.body.removeChild(overlay);
-
-            trailerContainer.appendChild(iframe);
-            trailerContainer.appendChild(closeBtn);
-            overlay.appendChild(trailerContainer);
-            document.body.appendChild(overlay);
-        };
+                trailerContainer.appendChild(iframe);
+                trailerContainer.appendChild(closeBtn);
+                overlay.appendChild(trailerContainer);
+                document.body.appendChild(overlay);
+            };
+        }
     }
 }
 
@@ -694,16 +837,14 @@ function spin() {
     const currentIndex = Math.floor(normalized / slice);
 
     if (currentIndex !== previousIndex) {
-// speed примерно от 0 (медленно) до 0.5 (быстро)
-const maxVolume = 0.3;       // максимальная громкость
-const minVolume = 0.03;      // минимальная громкость на большой скорости
-const normalizedVolume = maxVolume - speed * (maxVolume - minVolume);
-
-const tick = new Audio('tick.mp3');
-tick.volume = Math.max(normalizedVolume, minVolume); // чтобы громкость не ушла в 0
-tick.play();
-
-
+        try {
+            const maxVolume = 0.3;
+            const minVolume = 0.03;
+            const normalizedVolume = maxVolume - speed * (maxVolume - minVolume);
+            const tick = new Audio('tick.mp3');
+            tick.volume = Math.max(normalizedVolume, minVolume);
+            tick.play();
+        } catch (e) {}
         previousIndex = currentIndex;
     }
 
@@ -745,6 +886,10 @@ tick.play();
         const pointerAngleFinal = (-Math.PI/2 - angle) % (2*Math.PI);
         const normalizedFinal = (pointerAngleFinal + 2*Math.PI) % (2*Math.PI);
         const finalIndex = Math.floor(normalizedFinal / slice);
+        if (rouletteMovies[finalIndex]) {
+            selectedMovieId = rouletteMovies[finalIndex].id;
+            render();
+        }
         rouletteMovies.splice(finalIndex,1);
         angle = 0;
         drawRoulette();
@@ -756,6 +901,8 @@ tick.play();
 
 function drawRoulette() {
     ctx.clearRect(0,0,canvas.width,canvas.height);
+    if (!rouletteMovies.length) return;
+    
     const cx = 375, cy = 375, radius = 350;
     const slice = (Math.PI*2)/rouletteMovies.length;
 
@@ -793,6 +940,36 @@ function drawRoulette() {
 canvas.style.cursor = "pointer";
 canvas.addEventListener("click", ()=>{ if(!spinning) startRoulette(); });
 
+// Глобальный обработчик ошибок загрузки изображений
+document.addEventListener('error', function(e) {
+    const target = e.target;
+    if (target.tagName === 'IMG' && target.classList.contains('poster-main')) {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = 300;
+        canvas.height = 450;
+        const ctx = canvas.getContext('2d');
+        
+        const gradient = ctx.createLinearGradient(0, 0, 300, 450);
+        gradient.addColorStop(0, '#2c3e50');
+        gradient.addColorStop(1, '#3498db');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 300, 450);
+        
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(target.alt || 'Постер', 150, 225);
+        
+        target.src = canvas.toDataURL();
+        target.onerror = null;
+    }
+}, true);
+
 function render() {
     renderSidebar();
     renderMain();
@@ -810,4 +987,3 @@ loadMovies();
 </div>
 </body>
 </html>
-
